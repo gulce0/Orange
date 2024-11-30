@@ -255,7 +255,7 @@ def show_admin_page(username):
     
     # Define the layout of the admin window
     layout = [
-        [sg.Text(f'Welcome {name}', font=('Helvetica', 16), justification='center', background_color='navyblue', text_color='white')],
+        [sg.Text(f'Welcome {name}! (Admin)', font=('Helvetica', 16), justification='center', background_color='navyblue', text_color='white')],
         [sg.Button('Create New Tour', button_color=('white', 'navyblue'))],
         [sg.Button('Exit', button_color=('white', 'navyblue'))]
     ]
@@ -334,6 +334,7 @@ def show_traveler_page():
 
 # Define the layout of the login window
 layout = [
+    [sg.Text('Welcome to Orange Travel Agency Platform, please enter your information', font=('Helvetica', 12), justification='center', background_color='navyblue', text_color='white')],
     [sg.Text('Username'), sg.InputText(key='username')],
     [sg.Text('Password'), sg.InputText(key='password', password_char='*')],
     [sg.Button('Login')]
