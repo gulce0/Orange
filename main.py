@@ -151,7 +151,7 @@ def show_add_hotel():
                   background_color='white', text_color='black')],
         [sg.Text("Available Hotels", font=('Helvetica', 12), background_color='navyblue', text_color='white')],
         [sg.Listbox(hotels, size=(50, len(hotels)), key="hotel_list", select_mode="single", background_color='white', text_color='black')],
-        [sg.Button("Assign Hotel", button_color=('white', 'navyblue')), sg.Button("Close", button_color=('white', 'navyblue'))]
+        [sg.Button("Assign Hotel", button_color=('white', 'navyblue')), sg.Button("Close", button_color=('white', 'navyblue')), sg.Button("Back", button_color=('white','navyblue'))]
     ]
 
     window = sg.Window("Hotel Assignment", layout)
@@ -165,6 +165,12 @@ def show_add_hotel():
         event, values = window.read()
 
         if event in (sg.WINDOW_CLOSED, "Close"):
+            break
+
+
+        if  event == 'Back':
+            window.close()
+            show_admin_page(username)
             break
 
         # Filter hotels by city
