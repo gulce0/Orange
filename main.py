@@ -398,10 +398,24 @@ def show_add_transportation_page():
                 t_code = result[0]
 
                 # Check for existing assignments for the selected dates
-                cur.execute("SELECT COUNT(*) FROM Assign WHERE sdate <= ? AND edate >= ? AND tid = ?", (selected_end_date, selected_start_date, tid))
+                cur.execute("SELECT COUNT(*) FROM Assign WHERE sdate <= ? AND edate >= ?", (selected_end_date, selected_start_date))
                 result = cur.fetchone()
                 if result[0] > 0:
-                    sg.popup("Transportation already assigned for the selected dates.", font=('Helvetica', 14))
+                    # Calculate unassigned dates
+                    cur.execute("SELECT sdate, edate FROM Assign WHERE tid = ?", (tid,))
+                    assigned_dates = cur.fetchall()
+                    assigned_dates_set = set()
+                    for sdate, edate in assigned_dates:
+                        current_date = datetime.strptime(sdate, '%Y-%m-%d')
+                        end_date = datetime.strptime(edate, '%Y-%m-%d')
+                        while current_date <= end_date:
+                            assigned_dates_set.add(current_date.strftime('%Y-%m-%d'))
+                            current_date += timedelta(days=1)
+
+                    unassigned_dates = set(available_dates) - assigned_dates_set
+                    unassigned_dates_list = list(unassigned_dates)
+                    unassigned_dates_list.sort()
+                    sg.popup(f"Transportation already assigned for the selected dates. Unassigned dates: {', '.join(unassigned_dates_list)}", font=('Helvetica', 14))
                     continue
 
                 # Ensure dates are in the correct format
