@@ -154,7 +154,7 @@ def show_add_hotel():
         [sg.Button("Assign Hotel", button_color=('white', 'navyblue')), sg.Button("Close", button_color=('white', 'navyblue')), sg.Button("Back", button_color=('white','navyblue'))]
     ]
 
-    window = sg.Window("Hotel Assignment", layout)
+    window = sg.Window("Hotel Assignment", layout, background_color='navyblue')
 
     def filter_hotels(hotels, city_filter):
         if city_filter == "All":
@@ -320,7 +320,7 @@ def show_add_transportation_page():
             ]
 
             layout = [[sg.Column(layout, scrollable=True, vertical_scroll_only=True, size=(600, 400))]]
-            window = sg.Window('Transportation_Page', layout)
+            window = sg.Window('Transportation_Page', layout, background_color='navyblue')
             break
         
 
