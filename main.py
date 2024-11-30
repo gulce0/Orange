@@ -109,14 +109,14 @@ def show_create_tour_form():
                             (next_tid, tname, stdate, endate, price, itinerary, maxcap))
                 con.commit()
                 print("Insert committed successfully", flush=True)
-                sg.popup('Tour created successfully', font=('Helvetica', 14))
+                sg.popup(f'Tour created successfully with ID {next_tid}', font=('Helvetica', 14))
             except Exception as e:
                 print(f"Error occurred: {e}", flush=True)
             finally:
                 con.close()
                 print("Database connection closed", flush=True)
             window.close()
-            show_add_transportation()
+            show_admin_page(username)
             break
 
     
@@ -409,12 +409,15 @@ def show_admin_page(username):
     
     name = user[0]
     
-    # Define the layout of the admin window
+ # Define the layout of the admin window
     layout = [
-        [sg.Text(f'Welcome {name}! (Admin)', font=('Helvetica', 16), justification='center', background_color='navyblue', text_color='white')],
+        [sg.Text(f'Welcome {name}', font=('Helvetica', 14), justification='center', background_color='navyblue', text_color='white')],
         [sg.Button('Create New Tour', button_color=('white', 'navyblue'))],
-        [sg.Button('Exit', button_color=('white', 'navyblue'))]
+        [sg.Button('Add Transportation', button_color=('white', 'navyblue'))],
+        [sg.Button('Add Hotel', button_color=('white', 'navyblue'))],
+        [sg.Button('Logout', button_color=('white', 'navyblue'))]
     ]
+    
     
     # Create the admin window
     window = sg.Window('Admin Page', layout, background_color='navyblue')
@@ -422,11 +425,19 @@ def show_admin_page(username):
     # Event loop to process events and get values of inputs
     while True:
         event, values = window.read()
-        if event == sg.WIN_CLOSED or event == 'Exit':
+        if event == sg.WIN_CLOSED or event == 'Logout':
             break
         if event == 'Create New Tour':
             window.close()
             show_create_tour_form()
+            break
+        if event == 'Add Transportation':
+            window.close()
+            show_add_transportation_form(username)
+            break
+        if event == 'Add Hotel':
+            window.close()
+            show_add_hotel_form(username)
             break
 
     window.close()
@@ -442,7 +453,7 @@ def show_tourguide_page():
     # Define the layout of the tour guide window
     layout = [
         [sg.Text('Tour Guide Page')],
-        [sg.Button('Exit')]
+        [sg.Button('Logout')]
     ]
     
     # Create the tour guide window
@@ -451,7 +462,7 @@ def show_tourguide_page():
     # Event loop to process events and get values of inputs
     while True:
         event, values = window.read()
-        if event == sg.WIN_CLOSED or event == 'Exit':
+        if event == sg.WIN_CLOSED or event == 'Logout':
             break
     
     window.close()
@@ -467,7 +478,7 @@ def show_traveler_page():
     # Define the layout of the traveler window
     layout = [
         [sg.Text('Traveler Page')],
-        [sg.Button('Exit')]
+        [sg.Button('Logout')]
     ]
     
     # Create the traveler window
@@ -476,7 +487,7 @@ def show_traveler_page():
     # Event loop to process events and get values of inputs
     while True:
         event, values = window.read()
-        if event == sg.WIN_CLOSED or event == 'Exit':
+        if event == sg.WIN_CLOSED or event == 'Logout':
             break
     
     window.close()
