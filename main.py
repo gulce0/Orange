@@ -437,7 +437,7 @@ def show_admin_page(username):
             break
         if event == 'Add Hotel':
             window.close()
-            show_add_hotel_form(username)
+            show_add_hotel()
             break
 
     window.close()
