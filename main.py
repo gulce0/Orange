@@ -258,7 +258,7 @@ def show_add_transportation_page():
         [sg.Button("Next", font=('Helvetica', 16)), sg.Button("Back", font=('Helvetica', 16))]
     ]
 
-    window = sg.Window('Select Tour', layout)
+    window = sg.Window('Select Tour', layout, background_color='navyblue')
 
     while True:
         event, values = window.read()
