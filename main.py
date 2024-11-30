@@ -41,11 +41,13 @@ def get_user_role(username, password):
 
 
 def show_create_tour_form():
+    today = datetime.today()
+    today_str = today.strftime('%Y-%m-%d')
     layout = [
         [sg.Text('Create a New Tour', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
         [sg.Text('Tour Name', background_color='navyblue', text_color='white'), sg.InputText(key='tname')],
-        [sg.Text('Starting Date', background_color='navyblue', text_color='white'), sg.InputText(key='stdate')],
-        [sg.Text('Ending Date', background_color='navyblue', text_color='white'), sg.InputText(key='endate')],
+        [sg.Text('Starting Date', background_color='navyblue', text_color='white'), sg.Input(key='stdate', size=(20, 1)), sg.CalendarButton("Choose Starting Date", target="stdate", format="%Y-%m-%d", default_date_m_d_y=(today.month, today.day, today.year), close_when_date_chosen=True, begin_at_sunday_plus=1)],
+        [sg.Text('Ending Date', background_color='navyblue', text_color='white'), sg.Input(key='endate', size=(20, 1)), sg.CalendarButton("Choose Ending Date", target="endate", format="%Y-%m-%d", close_when_date_chosen=True, begin_at_sunday_plus=1)],
         [sg.Text('Price', background_color='navyblue', text_color='white'), sg.InputText(key='price')],
         [sg.Text('Itinerary', background_color='navyblue', text_color='white'), sg.InputText(key='itinerary')],
         [sg.Text('Maximum Capacity', background_color='navyblue', text_color='white'), sg.InputText(key='maxcap')],
@@ -71,7 +73,21 @@ def show_create_tour_form():
             itinerary = values['itinerary']
             maxcap = values['maxcap']
 
-    
+            # Validate dates
+            if not stdate or not endate:
+                sg.popup('Please choose both starting and ending dates.', font=('Helvetica', 14))
+                continue
+
+            stdate_obj = datetime.strptime(stdate, '%Y-%m-%d')
+            endate_obj = datetime.strptime(endate, '%Y-%m-%d')
+
+            if stdate_obj < today:
+                sg.popup('Starting date cannot be earlier than today.', font=('Helvetica', 14))
+                continue
+
+            if endate_obj < stdate_obj:
+                sg.popup('Ending date cannot be earlier than starting date.', font=('Helvetica', 14))
+                continue
 
             try:
                 print("Starting Create Tour logic", flush=True)
@@ -93,21 +109,13 @@ def show_create_tour_form():
                             (next_tid, tname, stdate, endate, price, itinerary, maxcap))
                 con.commit()
                 print("Insert committed successfully", flush=True)
-<<<<<<< HEAD
-                sg.popup('Tour created successfully', font=('Helvetica', 14))
-<<<<<<< Updated upstream
-=======
                 sg.popup(f'Tour created successfully with ID {next_tid}', font=('Helvetica', 14))
-=======
-                
->>>>>>> Stashed changes
             except Exception as e:
                 print(f"Error occurred: {e}", flush=True)
             finally:
                 con.close()
                 print("Database connection closed", flush=True)
             window.close()
-<<<<<<< Updated upstream
             show_admin_page(username)
             break
 
@@ -379,7 +387,6 @@ def show_add_transportation_page():
                 print(f"Inserting: {t_type}, {t_start}, {t_destination}", flush=True)
                 con = sqlite3.connect('Project.db')
                 cur = con.cursor()
->>>>>>> 5df53925000a1b41e1b08ec51e0c8d5c6bd5d139
                 
             except Exception as e:
                 print(f"Error occurred: {e}", flush=True)
@@ -387,8 +394,6 @@ def show_add_transportation_page():
                 con.close()
                 print("Database connection closed", flush=True)
             window.close()
-=======
->>>>>>> Stashed changes
             show_tourguide_selection_page()
             break
 
@@ -405,9 +410,12 @@ def show_admin_page(username):
     
     # Define the layout of the admin window
     layout = [
-        [sg.Text(f'Welcome {name}', font=('Helvetica', 16), justification='center', background_color='navyblue', text_color='white')],
+        [sg.Text(f'Welcome {name}! (Admin)', font=('Helvetica', 14), justification='center', background_color='navyblue', text_color='white')],
         [sg.Button('Create New Tour', button_color=('white', 'navyblue'))],
-        [sg.Button('Exit', button_color=('white', 'navyblue'))]
+        [sg.Button('Add Transportation', button_color=('white', 'navyblue'))],
+        [sg.Button('Add Hotel', button_color=('white', 'navyblue'))],
+        [sg.Button('Insert Tourguide', button_color=('white', 'navyblue'))],
+        [sg.Button('Logout', button_color=('white', 'navyblue'))]
     ]
     
     # Create the admin window
@@ -416,13 +424,24 @@ def show_admin_page(username):
     # Event loop to process events and get values of inputs
     while True:
         event, values = window.read()
-        if event == sg.WIN_CLOSED or event == 'Exit':
+        if event == sg.WIN_CLOSED or event == 'Logout':
             break
         if event == 'Create New Tour':
             window.close()
             show_create_tour_form()
             break
-
+        if event == 'Add Transportation':
+            window.close()
+            show_add_transportation_page()
+            break
+        if event == 'Add Hotel':
+            window.close()
+            show_add_hotel()
+            break
+        if event == 'Insert Tourguide':
+            window.close()
+            show_tourguide_selection_page()
+            break
     window.close()
 
 def show_tourguide_selection_page():
@@ -486,16 +505,10 @@ def show_tourguide_selection_page():
                 sg.popup("You have selected fewer than two tour guides. Please select two.")
             elif len(chosen_tourguides) > 2:
                 sg.popup("Too many selections! Please select only two tour guides.")    
-<<<<<<< Updated upstream
-    
-    window.close()
-    display_all_tours_page()
-=======
             window.close()
             display_all_tours_page()
     window.close()
 
->>>>>>> Stashed changes
 
 def filter_tourguides(available_dates):
     con = sqlite3.connect('Project.db')
@@ -535,28 +548,15 @@ def display_all_tours_page():
     con.close()
 
     layout = [
-<<<<<<< Updated upstream
-        [sg.Text("All Tours in the System", font=('Helvetica', 16), background_color='navyblue', text_color='white' )],
-        [sg.Table(values=tours, headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Maximum Capacity", "Itinerary", "Price"],justification='center', auto_size_columns=False, num_rows=min(len(tours), 10))],
-        [sg.Button("Log Out")]
-=======
         [sg.Text("All Tours in the System", font=('Helvetica', 16))],
         [sg.Table(values=tours, headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Maximum Capacity", "Itinerary", "Price"],justification='center', auto_size_columns=False, num_rows=min(len(tours), 10))],
         [sg.Button("Log Out")], [sg.Button("Back")]
->>>>>>> Stashed changes
     ]
 
 
     window = sg.Window('All Tours', layout, background_color='navyblue')
 
     while True:
-<<<<<<< Updated upstream
-        event, _ = window.read()
-        if event == sg.WINDOW_CLOSED or event == "Log Out":
-            sg.popup("Logged out successfully!")
-            break
-
-=======
         event = window.read()
         if event == sg.WINDOW_CLOSED or event == 'Back':
             break
@@ -564,7 +564,6 @@ def display_all_tours_page():
           sg.popup("Logged out successfully!")
           break
     
->>>>>>> Stashed changes
     window.close()
 
 
@@ -621,6 +620,7 @@ def show_traveler_page():
 
 # Define the layout of the login window
 layout = [
+    [sg.Text('Welcome to Orange Travel Agency Platform, please enter your information', font=('Helvetica', 12), justification='center', background_color='navyblue', text_color='white')],
     [sg.Text('Username'), sg.InputText(key='username')],
     [sg.Text('Password'), sg.InputText(key='password', password_char='*')],
     [sg.Button('Login')]
@@ -659,7 +659,6 @@ while True:
                 sg.popup('Invalid username or password')
 
 window.close()
-
 
 
 
