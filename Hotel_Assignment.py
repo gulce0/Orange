@@ -69,6 +69,12 @@ def show_add_hotel():
                 sg.popup("Please select a hotel.", font=('Helvetica', 14))
                 continue
 
+
+            tour_id = selected_tour[0][0]  
+            selected_hotel_id = selected_hotel[0][0]  
+            tour_start_date = selected_tour[0][2] 
+            tour_end_date = selected_tour[0][3] 
+
             # Dates should be matching with the tour dates
             if selected_start_date < tour_start_date or selected_end_date > tour_end_date:
                 sg.popup("Selected dates must be matching with the tour dates.", font=('Helvetica', 14))
