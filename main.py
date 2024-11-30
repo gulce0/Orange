@@ -149,8 +149,8 @@ def show_add_transportation():
     con.close()
 
     # Convert the start and end dates to datetime objects
-    start_date_obj = datetime.strptime(stdate, '%Y-%m-%d') - timedelta(days=1)
-    end_date_obj = datetime.strptime(endate, '%Y-%m-%d') + timedelta(days=1)
+    start_date_obj = datetime.strptime(stdate, '%Y-%m-%d')
+    end_date_obj = datetime.strptime(endate, '%Y-%m-%d')
 
     # Generate a list of dates between start_date_obj and end_date_obj
     available_dates = []
@@ -228,13 +228,7 @@ def show_add_transportation():
                 con = sqlite3.connect('Project.db')
                 cur = con.cursor()
                 
-                # Check for existing assignments for the selected dates
-                cur.execute("SELECT COUNT(*) FROM Assign WHERE sdate <= ? AND edate >= ?", (selected_end_date, selected_start_date))
-                result = cur.fetchone()
-                if result[0] > 0:
-                    sg.popup("Transportation already assigned for the selected dates.", font=('Helvetica', 14))
-                    continue
-                
+
                 # Fetch the tcode from the Transportation table
                 cur.execute("SELECT tcode FROM Transportation WHERE type = ? AND starting_point = ? AND destination = ?", (t_type, t_start, t_destination))
                 result = cur.fetchone()
@@ -242,6 +236,13 @@ def show_add_transportation():
                     sg.popup("Transportation option not found in the database.", font=('Helvetica', 14))
                     continue
                 t_code = result[0]
+
+                                # Check for existing assignments for the selected dates
+                cur.execute("SELECT COUNT(*) FROM Assign WHERE sdate <= ? AND edate >= ? AND tid = ?", (selected_end_date, selected_start_date, tid))
+                result = cur.fetchone()
+                if result[0] > 0:
+                    sg.popup("Transportation already assigned for the selected dates.", font=('Helvetica', 14))
+                    continue
 
                 # Ensure dates are in the correct format
                 try:
@@ -274,13 +275,14 @@ def show_add_transportation():
                     sg.popup("All dates have transportation assigned.", font=('Helvetica', 14))
                     window.close()
                 else:
-                    available_dates = list(unassigned_dates)
+                    unassigned_dates_list = list(unassigned_dates)
+                    unassigned_dates_list.sort()
+                    sg.popup(f"Some dates are still unassigned: {', '.join(unassigned_dates_list)}", font=('Helvetica', 14))
+                    available_dates = unassigned_dates_list
                     assigned_transportation = {date: None for date in available_dates}
-                    sg.popup(" {available_dates} are still unassigned. Please assign transportation for the remaining dates.", font=('Helvetica', 14))
                     window["stdate"].update("")
                     window["endate"].update("")
                     window["transportation_options"].update(filtered_options)
-
             except Exception as e:
                 print(f"Error occurred: {e}", flush=True)
             finally:
