@@ -89,7 +89,6 @@ def show_create_tour_form():
                 sg.popup('Ending date cannot be earlier than starting date.', font=('Helvetica', 14))
                 continue
 
-
             try:
                 print("Starting Create Tour logic", flush=True)
                 tname = values['tname']
@@ -111,7 +110,6 @@ def show_create_tour_form():
                 con.commit()
                 print("Insert committed successfully", flush=True)
                 sg.popup('Tour created successfully', font=('Helvetica', 14))
-
             except Exception as e:
                 print(f"Error occurred: {e}", flush=True)
             finally:
@@ -129,35 +127,22 @@ def show_create_tour_form():
 #Transportation
 #deneme
 def show_add_transportation():
-    transportation_options=[
-    ("Bus", "Istanbul", "Rome"),
-    ("Plane", "Moscow", "Paris"),
-    ("Train", "Berlin", "Prague"),
-    ("Boat", "Athens", "Santorini"),
-    ("Plane", "New York", "Boston"),
-    ("Plane", "Tokyo", "Seoul"),
-    ("Train", "London", "Edinburgh"),
-    ("Bus", "Madrid", "Barcelona"),
-    ("Boat", "Naples", "Palermo"),
-    ("Boat", "Los Angeles", "San Francisco"),
-    ("Plane", "Dubai", "Cairo"),
-    ("Train", "Zurich", "Geneva"),
-    ("Bus", "Helsinki", "Stockholm"),
-    ("Boat", "Tallinn", "Helsinki"),
-    ("Plane", "Bangkok", "Singapore"),
-    ("Train", "Munich", "Vienna"),
-    ("Train", "Brussels", "Amsterdam"),
-    ("Plane", "Sydney", "Melbourne"),
-    ("Bus", "Warsaw", "Krakow"),
-    ("Boat", "Oslo", "Copenhagen")
-] 
+    
+
     con = sqlite3.connect('Project.db')
     cur = con.cursor()
+
+    # Get the transportation options from the database
+    cur.execute("SELECT type, starting_point, destination FROM Transportation")
+    transportation_options= cur.fetchall()
+
+    # Get the tour code from the database
     cur.execute("SELECT MAX(tid) FROM Tour")
     result1 = cur.fetchone()
-    t_code = result1[0]
+    tid = result1[0]
 
-    cur.execute("SELECT stdate,endate FROM Tour WHERE tid = ?",  (t_code,))
+    # Get the starting and end dates of the tour
+    cur.execute("SELECT stdate,endate FROM Tour WHERE tid = ?",  (tid,))
     result2 = cur.fetchone()
     stdate = result2[0]
     endate = result2[1]
@@ -177,8 +162,8 @@ def show_add_transportation():
 
     layout = [
         [sg.Text("Choose Transportation of Tour", font=('Helvetica', 16))],
-        [sg.Listbox(available_dates, key="selected_dates", size=(30, 10), select_mode='multiple')],
-        [sg.Text("Filter by type", font=('Helvetica', 16))],
+        [sg.Text('Starting Date', background_color='navyblue', text_color='white'), sg.Input(key='stdate', size=(20, 1)), sg.CalendarButton("Choose Starting Date", target="stdate", format="%Y-%m-%d", default_date_m_d_y=(start_date_obj.month, start_date_obj.day, start_date_obj.year), close_when_date_chosen=True, begin_at_sunday_plus=1)],
+        [sg.Text('Ending Date', background_color='navyblue', text_color='white'), sg.Input(key='endate', size=(20, 1)), sg.CalendarButton("Choose Ending Date", target="endate", format="%Y-%m-%d", close_when_date_chosen=True, begin_at_sunday_plus=1)],
         [sg.Combo(["All", "Plane", "Train", "Boat", "Bus"], key="t_filter", default_value="All", enable_events=True)],
         [sg.Text("Filter by starting point", font=('Helvetica', 16))],
         [sg.Combo(["All", "Istanbul", "Moscow", "Berlin", "Athens", "New York", "Tokyo", "London", "Madrid", "Naples", "Los Angeles", "Dubai", "Zurich", "Helsinki", "Tallinn", "Bangkok", "Munich", "Brussels", "Sydney", "Warsaw", "Oslo"], key= "s_filter", default_value="All", enable_events=True)],
@@ -206,33 +191,98 @@ def show_add_transportation():
         if event == sg.WINDOW_CLOSED or event == "Close":
             break
         
+        # Filter Process
         if event in ("t_filter", "s_filter", "d_filter"):
             filtered_options = filter_transportation(transportation_options, values["t_filter"], values["s_filter"], values["d_filter"])
             window["transportation_options"].update(filtered_options)
 
+        # Date arrangements
         if event == "Assign Transportation":
-            selected_dates = values["selected_dates"]
+            selected_start_date = values["stdate"]
+            selected_end_date = values["endate"]
             t_transportation = values['transportation_options']
-            if not selected_dates:
-                sg.popup("Please select at least one date.", font=('Helvetica', 14))
+            
+            if not selected_start_date or not selected_end_date:
+                sg.popup("Please select both start and end dates.", font=('Helvetica', 14))
                 continue
-            if not t_transportation:
-                sg.popup("Please select a transportation option.", font=('Helvetica', 14))
-                continue        
+            
+            if selected_start_date not in available_dates or selected_end_date not in available_dates:
+                sg.popup("Selected dates must be within the available dates range.", font=('Helvetica', 14))
+                continue
+            
+            if selected_end_date < selected_start_date:
+                sg.popup("End date cannot be earlier than start date.", font=('Helvetica', 14))
+                continue
+            
+            if not t_transportation or len(t_transportation[0]) < 3:
+                sg.popup("Please select a valid transportation option.", font=('Helvetica', 14))
+                continue
+            
             try:
                 print("Starting choose tour options", flush=True)
-                t_type = transportation_options[0]
-                t_start = transportation_options[1]
-                t_destination = transportation_options[2]
+                t_type = t_transportation[0][0]
+                t_start = t_transportation[0][1]
+                t_destination = t_transportation[0][2]
 
                 print(f"Inserting: {t_type}, {t_start}, {t_destination}", flush=True)
                 con = sqlite3.connect('Project.db')
                 cur = con.cursor()
-                cur.execute("INSERT INTO Transportation (tcode, type, starting_point, destination) VALUES (?, ?, ?, ?)",
-                                (t_code, t_type[0], t_start[1], t_destination[2]))
+                
+
+                # Fetch the tcode from the Transportation table
+                cur.execute("SELECT tcode FROM Transportation WHERE type = ? AND starting_point = ? AND destination = ?", (t_type, t_start, t_destination))
+                result = cur.fetchone()
+                if result is None:
+                    sg.popup("Transportation option not found in the database.", font=('Helvetica', 14))
+                    continue
+                t_code = result[0]
+
+                                # Check for existing assignments for the selected dates
+                cur.execute("SELECT COUNT(*) FROM Assign WHERE sdate <= ? AND edate >= ? AND tid = ?", (selected_end_date, selected_start_date, tid))
+                result = cur.fetchone()
+                if result[0] > 0:
+                    sg.popup("Transportation already assigned for the selected dates.", font=('Helvetica', 14))
+                    continue
+
+                # Ensure dates are in the correct format
+                try:
+                    selected_start_date = datetime.strptime(selected_start_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+                    selected_end_date = datetime.strptime(selected_end_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+                except ValueError:
+                    sg.popup("Invalid date format. Please use YYYY-MM-DD.", font=('Helvetica', 14))
+                    continue
+
+                # Insert the new assignment
+                cur.execute("INSERT INTO Assign (tid, tcode, sdate, edate) VALUES (?, ?, ?, ?)",
+                            (tid, t_code, selected_start_date, selected_end_date))
                 con.commit()
                 print("Insert committed successfully", flush=True)
                 sg.popup('Transportation created successfully', font=('Helvetica', 14))
+
+                # Check if all dates have transportation assigned
+                cur.execute("SELECT sdate, edate FROM Assign WHERE tid = ?", (tid,))
+                assigned_dates = cur.fetchall()
+                assigned_dates_set = set()
+                for sdate, edate in assigned_dates:
+                    current_date = datetime.strptime(sdate, '%Y-%m-%d')
+                    end_date = datetime.strptime(edate, '%Y-%m-%d')
+                    while current_date <= end_date:
+                        assigned_dates_set.add(current_date.strftime('%Y-%m-%d'))
+                        current_date += timedelta(days=1)
+
+                unassigned_dates = set(available_dates) - assigned_dates_set
+                if not unassigned_dates:
+                    sg.popup("All dates have transportation assigned.", font=('Helvetica', 14))
+                    window.close()
+                else:
+                    unassigned_dates_list = list(unassigned_dates)
+                    unassigned_dates_list.sort()
+                    sg.popup(f"Some dates are still unassigned: {', '.join(unassigned_dates_list)}", font=('Helvetica', 14))
+                    available_dates = unassigned_dates_list
+                    assigned_transportation = {date: None for date in available_dates}
+                    window["stdate"].update("")
+                    window["endate"].update("")
+                    window["transportation_options"].update(filtered_options)
             except Exception as e:
                 print(f"Error occurred: {e}", flush=True)
             finally:
@@ -240,8 +290,6 @@ def show_add_transportation():
                 print("Database connection closed", flush=True)
 
     window.close()
-    
-
 
 
 def show_admin_page(username):
@@ -320,7 +368,6 @@ def show_traveler_page():
     # Event loop to process events and get values of inputs
     while True:
         event, values = window.read()
-
         if event == sg.WIN_CLOSED or event == 'Exit':
             break
     
@@ -373,4 +420,3 @@ while True:
                 sg.popup('Invalid username or password')
 
 window.close()
-
