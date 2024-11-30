@@ -93,7 +93,288 @@ def show_create_tour_form():
                             (next_tid, tname, stdate, endate, price, itinerary, maxcap))
                 con.commit()
                 print("Insert committed successfully", flush=True)
+<<<<<<< HEAD
                 sg.popup('Tour created successfully', font=('Helvetica', 14))
+=======
+                sg.popup(f'Tour created successfully with ID {next_tid}', font=('Helvetica', 14))
+            except Exception as e:
+                print(f"Error occurred: {e}", flush=True)
+            finally:
+                con.close()
+                print("Database connection closed", flush=True)
+            window.close()
+            show_admin_page(username)
+            break
+
+    
+    window.close()
+
+
+#Hotel Assignment
+    
+def show_add_hotel():
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+
+    cur.execute("SELECT tid, tname, stdate, endate FROM Tour")
+    tours = cur.fetchall()
+
+    cur.execute("SELECT hid, city, brand FROM Hotel")
+    hotels = cur.fetchall()
+    con.close()
+
+    layout = [
+        [sg.Text("Assign Hotels for Tours", font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        [sg.Text("Select a Tour", font=('Helvetica', 12), background_color='navyblue', text_color='white')],
+        [sg.Listbox(tours, size=(50, 5), key="selected_tour", select_mode="single", background_color='white', text_color='black')],
+        [sg.Text("Starting Date", font=('Helvetica', 12), background_color='navyblue', text_color='white'),
+         sg.Input(key="stdate", background_color='white', text_color='black'),
+         sg.CalendarButton("Pick Start Date", target="stdate", format="%Y-%m-%d", button_color=('white', 'navyblue'))],
+        [sg.Text("Ending Date", font=('Helvetica', 12), background_color='navyblue', text_color='white'),
+         sg.Input(key="endate", background_color='white', text_color='black'),
+         sg.CalendarButton("Pick End Date", target="endate", format="%Y-%m-%d", button_color=('white', 'navyblue'))],
+        [sg.Text("Filter by City", font=('Helvetica', 12), background_color='navyblue', text_color='white')],
+        [sg.Combo(["All"] + list(set(hotel[1] for hotel in hotels)), key="city_filter", default_value="All", enable_events=True,
+                  background_color='white', text_color='black')],
+        [sg.Text("Available Hotels", font=('Helvetica', 12), background_color='navyblue', text_color='white')],
+        [sg.Listbox(hotels, size=(50, len(hotels)), key="hotel_list", select_mode="single", background_color='white', text_color='black')],
+        [sg.Button("Assign Hotel", button_color=('white', 'navyblue')), sg.Button("Close", button_color=('white', 'navyblue')), sg.Button("Back", button_color=('white','navyblue'))]
+    ]
+
+    window = sg.Window("Hotel Assignment", layout)
+
+    def filter_hotels(hotels, city_filter):
+        if city_filter == "All":
+            return hotels
+        return [hotel for hotel in hotels if hotel[1] == city_filter]
+
+    while True:
+        event, values = window.read()
+
+        if event in (sg.WINDOW_CLOSED, "Close"):
+            break
+
+
+        if  event == 'Back':
+            window.close()
+            show_admin_page(username)
+            break
+
+        if  event == 'OK':
+            window.close()
+            show_admin_page(username)
+            break
+        
+        # Filter hotels by city
+        if event == "city_filter":
+            filtered_hotels = filter_hotels(hotels, values["city_filter"])
+            window["hotel_list"].update(filtered_hotels)
+
+        # Assign a hotel to a tour
+        if event == "Assign Hotel":
+            selected_tour = values["selected_tour"]
+            selected_start_date = values["stdate"]
+            selected_end_date = values["endate"]
+            selected_hotel = values["hotel_list"]
+
+            if not selected_tour:
+                sg.popup("Please select a tour.", font=('Helvetica', 14))
+                continue
+
+            if not selected_start_date or not selected_end_date:
+                sg.popup("Please select both start and end dates.", font=('Helvetica', 14))
+                continue
+
+            if not selected_hotel:
+                sg.popup("Please select a hotel.", font=('Helvetica', 14))
+                continue
+
+        
+
+            tour_id = selected_tour[0][0]  
+            selected_hotel_id = selected_hotel[0][0]  
+            tour_start_date = selected_tour[0][2] 
+            tour_end_date = selected_tour[0][3] 
+
+            # Dates should be matching with the tour dates
+            if selected_start_date < tour_start_date or selected_end_date > tour_end_date:
+                sg.popup("Selected dates must be matching with the tour dates.", font=('Helvetica', 14))
+                continue
+
+            try:
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+
+                # Check the availability of the hotel
+                cur.execute("""
+                    SELECT COUNT(*)
+                    FROM reservation
+                    WHERE hid = ? AND sdate <= ? AND edate >= ?
+                """, (selected_hotel_id, selected_end_date, selected_start_date))
+                if cur.fetchone()[0] > 0:
+                    sg.popup("This hotel is already assigned for the selected dates.", font=('Helvetica', 14))
+                    continue
+
+                # Insert the hotel assignment into the reservation table
+                cur.execute("""
+                    INSERT INTO reservation (tid, hid, sdate, edate)
+                    VALUES (?, ?, ?, ?)
+                """, (tour_id, selected_hotel_id, selected_start_date, selected_end_date))
+                con.commit()
+
+                sg.popup("Hotel successfully assigned to the tour.", font=('Helvetica', 14))
+
+                window.close()  
+                show_admin_page(username)  
+                break
+
+            except Exception as e:
+                sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
+            finally:
+                con.close()
+
+    window.close()
+
+#Transportation Assignment
+
+def show_add_transportation_page():
+    
+
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+
+    # Get the tours from the database
+    cur.execute("SELECT tid, tname, stdate, endate FROM Tour")
+    tours = cur.fetchall()
+    con.close()
+
+    # Layout for selecting a tour
+    layout = [
+        [sg.Text("Select a Tour to assign transportation", font=('Helvetica', 16))],
+        [sg.Listbox(tours, size=(50, 5), key="selected_tour", select_mode="single", background_color='white', text_color='black')],
+        [sg.Button("Next", font=('Helvetica', 16)), sg.Button("Back", font=('Helvetica', 16))]
+    ]
+
+    window = sg.Window('Select Tour', layout)
+
+    while True:
+        event, values = window.read()
+        if event == sg.WINDOW_CLOSED:
+            window.close()
+            return
+        if event == "Back":
+            window.close()
+            show_admin_page(username)
+            break
+        
+        if event == "Next":
+            selected_tour = values["selected_tour"]
+            if not selected_tour:
+                sg.popup("Please select a tour.", font=('Helvetica', 14))
+                continue
+
+            tid = selected_tour[0][0]
+            stdate = selected_tour[0][2]
+            endate = selected_tour[0][3]
+            window.close()
+
+            # Convert the start and end dates to datetime objects
+            start_date_obj = datetime.strptime(stdate, '%Y-%m-%d')
+            end_date_obj = datetime.strptime(endate, '%Y-%m-%d')
+
+            # Generate a list of dates between start_date_obj and end_date_obj
+            available_dates = []
+            current_date = start_date_obj
+            while current_date <= end_date_obj:
+                available_dates.append(current_date.strftime('%Y-%m-%d'))
+                current_date += timedelta(days=1)
+            assigned_transportation = {date: None for date in available_dates}
+
+            # Get the transportation options from the database
+            con = sqlite3.connect('Project.db')
+            cur = con.cursor()
+            cur.execute("SELECT type, starting_point, destination FROM Transportation")
+            transportation_options = cur.fetchall()
+            types = list(set(option[0] for option in transportation_options))
+            starting_points = list(set(option[1] for option in transportation_options))
+            destinations = list(set(option[2] for option in transportation_options))
+
+            con.close()
+
+            layout = [
+                [sg.Text("Choose Transportation of Tour", font=('Helvetica', 16))],
+                [sg.Text('Starting Date', background_color='navyblue', text_color='white'), sg.Input(key='stdate', size=(20, 1)), sg.CalendarButton("Choose Starting Date", target="stdate", format="%Y-%m-%d", default_date_m_d_y=(start_date_obj.month, start_date_obj.day, start_date_obj.year), close_when_date_chosen=True, begin_at_sunday_plus=1)],
+                [sg.Text('Ending Date', background_color='navyblue', text_color='white'), sg.Input(key='endate', size=(20, 1)), sg.CalendarButton("Choose Ending Date", target="endate", format="%Y-%m-%d", default_date_m_d_y=(end_date_obj.month, end_date_obj.day, end_date_obj.year), close_when_date_chosen=True, begin_at_sunday_plus=1)],
+                [sg.Combo(["All"]+ types, key="t_filter", default_value="All", enable_events=True)],
+                [sg.Text("Filter by starting point", font=('Helvetica', 16))],
+                [sg.Combo(["All"]+ starting_points, key= "s_filter", default_value="All", enable_events=True)],
+                [sg.Text("Filter by destination", font=('Helvetica', 16))],
+                [sg.Combo(["All"]+ destinations, key= "d_filter", default_value="All", enable_events=True)],
+                [sg.Text("Available Transportation Options", font=('Helvetica', 16))],
+                [sg.Listbox(transportation_options, key="transportation_options", size=(30, len(transportation_options)), select_mode='single', enable_events=True)],
+                [sg.Button("Assign Transportation", font=('Helvetica', 16))],
+                [sg.Button("Back", font=('Helvetica', 16))]
+            ]
+
+            layout = [[sg.Column(layout, scrollable=True, vertical_scroll_only=True, size=(600, 400))]]
+            window = sg.Window('Transportation_Page', layout)
+            break
+        
+
+    def filter_transportation(options, t_filter, s_filter, d_filter):
+        filtered_options = []
+        for option in options:
+            if (t_filter == "All" or option[0] == t_filter) and \
+                (s_filter == "All" or option[1] == s_filter) and \
+                (d_filter == "All" or option[2] == d_filter):
+                filtered_options.append(option)
+        return filtered_options
+
+    while True:
+        event, values = window.read()
+        if event == sg.WINDOW_CLOSED:
+            break
+        if event == "Back":
+            window.close()
+            show_add_transportation_page()
+            break
+        # Filter Process
+        if event in ("t_filter", "s_filter", "d_filter"):
+            filtered_options = filter_transportation(transportation_options, values["t_filter"], values["s_filter"], values["d_filter"])
+            window["transportation_options"].update(filtered_options)
+
+        # Date arrangements
+        if event == "Assign Transportation":
+            selected_start_date = values["stdate"]
+            selected_end_date = values["endate"]
+            t_transportation = values['transportation_options']
+            
+            if not selected_start_date or not selected_end_date:
+                sg.popup("Please select both start and end dates.", font=('Helvetica', 14))
+                continue
+            
+            if selected_start_date not in available_dates or selected_end_date not in available_dates:
+                sg.popup("Selected dates must be within the available dates range.", font=('Helvetica', 14))
+                continue
+            
+            if selected_end_date < selected_start_date:
+                sg.popup("End date cannot be earlier than start date.", font=('Helvetica', 14))
+                continue
+            
+            if not t_transportation or len(t_transportation[0]) < 3:
+                sg.popup("Please select a valid transportation option.", font=('Helvetica', 14))
+                continue
+            
+            try:
+                print("Starting choose tour options", flush=True)
+                t_type = t_transportation[0][0]
+                t_start = t_transportation[0][1]
+                t_destination = t_transportation[0][2]
+
+                print(f"Inserting: {t_type}, {t_start}, {t_destination}", flush=True)
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+>>>>>>> 5df53925000a1b41e1b08ec51e0c8d5c6bd5d139
                 
             except Exception as e:
                 print(f"Error occurred: {e}", flush=True)
