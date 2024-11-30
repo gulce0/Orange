@@ -173,6 +173,11 @@ def show_add_hotel():
             show_admin_page(username)
             break
 
+        if  event == 'OK':
+            window.close()
+            show_admin_page(username)
+            break
+        
         # Filter hotels by city
         if event == "city_filter":
             filtered_hotels = filter_hotels(hotels, values["city_filter"])
@@ -197,6 +202,7 @@ def show_add_hotel():
                 sg.popup("Please select a hotel.", font=('Helvetica', 14))
                 continue
 
+        
 
             tour_id = selected_tour[0][0]  
             selected_hotel_id = selected_hotel[0][0]  
@@ -230,6 +236,10 @@ def show_add_hotel():
                 con.commit()
 
                 sg.popup("Hotel successfully assigned to the tour.", font=('Helvetica', 14))
+
+                window.close()  
+                show_admin_page(username)  
+                break
 
             except Exception as e:
                 sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
