@@ -95,19 +95,14 @@ def show_create_tour_form():
                 print("Insert committed successfully", flush=True)
 <<<<<<< HEAD
                 sg.popup('Tour created successfully', font=('Helvetica', 14))
-<<<<<<< Updated upstream
 =======
                 sg.popup(f'Tour created successfully with ID {next_tid}', font=('Helvetica', 14))
-=======
-                
->>>>>>> Stashed changes
             except Exception as e:
                 print(f"Error occurred: {e}", flush=True)
             finally:
                 con.close()
                 print("Database connection closed", flush=True)
             window.close()
-<<<<<<< Updated upstream
             show_admin_page(username)
             break
 
@@ -387,8 +382,6 @@ def show_add_transportation_page():
                 con.close()
                 print("Database connection closed", flush=True)
             window.close()
-=======
->>>>>>> Stashed changes
             show_tourguide_selection_page()
             break
 
@@ -486,16 +479,9 @@ def show_tourguide_selection_page():
                 sg.popup("You have selected fewer than two tour guides. Please select two.")
             elif len(chosen_tourguides) > 2:
                 sg.popup("Too many selections! Please select only two tour guides.")    
-<<<<<<< Updated upstream
     
     window.close()
     display_all_tours_page()
-=======
-            window.close()
-            display_all_tours_page()
-    window.close()
-
->>>>>>> Stashed changes
 
 def filter_tourguides(available_dates):
     con = sqlite3.connect('Project.db')
@@ -535,36 +521,20 @@ def display_all_tours_page():
     con.close()
 
     layout = [
-<<<<<<< Updated upstream
         [sg.Text("All Tours in the System", font=('Helvetica', 16), background_color='navyblue', text_color='white' )],
         [sg.Table(values=tours, headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Maximum Capacity", "Itinerary", "Price"],justification='center', auto_size_columns=False, num_rows=min(len(tours), 10))],
         [sg.Button("Log Out")]
-=======
-        [sg.Text("All Tours in the System", font=('Helvetica', 16))],
-        [sg.Table(values=tours, headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Maximum Capacity", "Itinerary", "Price"],justification='center', auto_size_columns=False, num_rows=min(len(tours), 10))],
-        [sg.Button("Log Out")], [sg.Button("Back")]
->>>>>>> Stashed changes
     ]
 
 
     window = sg.Window('All Tours', layout, background_color='navyblue')
 
     while True:
-<<<<<<< Updated upstream
         event, _ = window.read()
         if event == sg.WINDOW_CLOSED or event == "Log Out":
             sg.popup("Logged out successfully!")
             break
 
-=======
-        event = window.read()
-        if event == sg.WINDOW_CLOSED or event == 'Back':
-            break
-        if event == "Log Out":
-          sg.popup("Logged out successfully!")
-          break
-    
->>>>>>> Stashed changes
     window.close()
 
 
