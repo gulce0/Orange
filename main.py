@@ -573,13 +573,26 @@ def show_tourguide_selection_page():
             window["chosen_tourguide"].update(all_tour_guides)
 
         if event == 'Assign Tourguides':
-            
             chosen_tourguides = values['chosen_tourguide']
 
             if chosen_tourguides and len(chosen_tourguides) == 2:
                 sg.popup(f"Tourguides '{chosen_tourguides[0]}' and '{chosen_tourguides[1]}' Assigned Successfully!")
-                assigned_tourguides(tid , chosen_tourguides)
                 
+                try:
+                    con = sqlite3.connect('Project.db')
+                    cur = con.cursor()
+                    for guide in chosen_tourguides:
+                        cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (tid, guide))
+                    con.commit()
+                    
+                except Exception as e:
+                    print(f"Error occurred: {e}", flush=True)
+                finally:
+                    con.close()
+                    print("Database connection closed", flush=True)
+                
+                window.close()
+                display_all_tours_page()  # Navigate to display_all_tours_page
                 break
             if not chosen_tourguides:
                 sg.popup("No tour guides selected! Please select exactly two.")
@@ -590,24 +603,6 @@ def show_tourguide_selection_page():
             if len(chosen_tourguides) > 2:
                 sg.popup("Too many selections! Please select only two tour guides.")   
                 continue 
-            
-            try:
-                con = sqlite3.connect('Project.db')
-                cur = con.cursor()
-                for guide in chosen_tourguides:
-                    cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (tid, guide))
-                con.commit()
-                
-            except Exception as e:
-                print(f"Error occurred: {e}", flush=True)
-            finally:
-                con.close()
-                print("Database connection closed", flush=True)
-            window.close()
-            display_all_tours_page()
-            break
-
-            
 
 
 def display_all_tours_page():
