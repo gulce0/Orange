@@ -316,6 +316,7 @@ def show_add_transportation_page():
 
             layout = [
                 [sg.Text("Choose Transportation of Tour", font=('Helvetica', 16))],
+                [sg.Text(f"Day interval of the chosen tour is {start_date_obj} - {end_date_obj}", font=('Helvetica', 16))],
                 [sg.Text('Starting Date', background_color='navyblue', text_color='white'), sg.Input(key='stdate', size=(20, 1)), sg.CalendarButton("Choose Starting Date", target="stdate", format="%Y-%m-%d", default_date_m_d_y=(start_date_obj.month, start_date_obj.day, start_date_obj.year), close_when_date_chosen=True, begin_at_sunday_plus=1)],
                 [sg.Text('Ending Date', background_color='navyblue', text_color='white'), sg.Input(key='endate', size=(20, 1)), sg.CalendarButton("Choose Ending Date", target="endate", format="%Y-%m-%d", default_date_m_d_y=(end_date_obj.month, end_date_obj.day, end_date_obj.year), close_when_date_chosen=True, begin_at_sunday_plus=1)],
                 [sg.Combo(["All"]+ types, key="t_filter", default_value="All", enable_events=True)],
@@ -367,7 +368,7 @@ def show_add_transportation_page():
                 continue
             
             if selected_start_date not in available_dates or selected_end_date not in available_dates:
-                sg.popup("Selected dates must be within the available dates range.", font=('Helvetica', 14))
+                sg.popup(f"Selected dates must be within the available dates range: {', '.join(available_dates)}", font=('Helvetica', 14))
                 continue
             
             if selected_end_date < selected_start_date:
