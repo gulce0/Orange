@@ -125,6 +125,7 @@ def show_create_tour_form():
 
 #Hotel Assignment
     
+# Hotel Assignment
 def show_add_hotel():
     con = sqlite3.connect('Project.db')
     cur = con.cursor()
@@ -134,12 +135,11 @@ def show_add_hotel():
 
     cur.execute("SELECT hid, city, brand FROM Hotel")
     hotels = cur.fetchall()
-    con.close()
 
     layout = [
         [sg.Text("Assign Hotels for Tours", font=('Helvetica', 16), background_color='navyblue', text_color='white')],
         [sg.Text("Select a Tour", font=('Helvetica', 12), background_color='navyblue', text_color='white')],
-        [sg.Listbox(tours, size=(50, 5), key="selected_tour", select_mode="single", background_color='white', text_color='black')],
+        [sg.Listbox(tours, size=(50, 5), key="selected_tour", select_mode="single", background_color='white', text_color='black', enable_events=True)],
         [sg.Text("Starting Date", font=('Helvetica', 12), background_color='navyblue', text_color='white'),
          sg.Input(key="stdate", background_color='white', text_color='black'),
          sg.CalendarButton("Pick Start Date", target="stdate", format="%Y-%m-%d", button_color=('white', 'navyblue'))],
@@ -156,10 +156,19 @@ def show_add_hotel():
 
     window = sg.Window("Hotel Assignment", layout, background_color='navyblue')
 
-    def filter_hotels(hotels, city_filter):
-        if city_filter == "All":
-            return hotels
-        return [hotel for hotel in hotels if hotel[1] == city_filter]
+    def filter_hotels(hotels, city_filter, selected_start_date, selected_end_date):
+        available_hotels = []
+        for hotel in hotels:
+            if city_filter != "All" and hotel[1] != city_filter:
+                continue
+            cur.execute("""
+                SELECT COUNT(*)
+                FROM reservation
+                WHERE hid = ? AND sdate <= ? AND edate >= ?
+            """, (hotel[0], selected_end_date, selected_start_date))
+            if cur.fetchone()[0] == 0:
+                available_hotels.append(hotel)
+        return available_hotels
 
     while True:
         event, values = window.read()
@@ -167,21 +176,35 @@ def show_add_hotel():
         if event in (sg.WINDOW_CLOSED, "Close"):
             break
 
-
-        if  event == 'Back':
+        if event == 'Back':
             window.close()
             show_admin_page(username)
             break
 
-        if  event == 'OK':
+        if event == 'OK':
             window.close()
             show_admin_page(username)
             break
-        
-        # Filter hotels by city
+
+        # Update hotel list based on selected tour
+        if event == "selected_tour":
+            selected_tour = values["selected_tour"]
+            if selected_tour:
+                tour_start_date = selected_tour[0][2]
+                tour_end_date = selected_tour[0][3]
+                filtered_hotels = filter_hotels(hotels, values["city_filter"], tour_start_date, tour_end_date)
+                window["hotel_list"].update(filtered_hotels)
+
+        # Filter hotels by city and availability
         if event == "city_filter":
-            filtered_hotels = filter_hotels(hotels, values["city_filter"])
-            window["hotel_list"].update(filtered_hotels)
+            selected_tour = values["selected_tour"]
+            if selected_tour:
+                tour_start_date = selected_tour[0][2]
+                tour_end_date = selected_tour[0][3]
+                filtered_hotels = filter_hotels(hotels, values["city_filter"], tour_start_date, tour_end_date)
+                window["hotel_list"].update(filtered_hotels)
+            else:
+                sg.popup("Please select a tour first.", font=('Helvetica', 14))
 
         # Assign a hotel to a tour
         if event == "Assign Hotel":
@@ -202,12 +225,10 @@ def show_add_hotel():
                 sg.popup("Please select a hotel.", font=('Helvetica', 14))
                 continue
 
-        
-
-            tour_id = selected_tour[0][0]  
-            selected_hotel_id = selected_hotel[0][0]  
-            tour_start_date = selected_tour[0][2] 
-            tour_end_date = selected_tour[0][3] 
+            tour_id = selected_tour[0][0]
+            selected_hotel_id = selected_hotel[0][0]
+            tour_start_date = selected_tour[0][2]
+            tour_end_date = selected_tour[0][3]
 
             # Dates should be matching with the tour dates
             if selected_start_date < tour_start_date or selected_end_date > tour_end_date:
@@ -215,9 +236,6 @@ def show_add_hotel():
                 continue
 
             try:
-                con = sqlite3.connect('Project.db')
-                cur = con.cursor()
-
                 # Check the availability of the hotel
                 cur.execute("""
                     SELECT COUNT(*)
@@ -237,8 +255,8 @@ def show_add_hotel():
 
                 sg.popup("Hotel successfully assigned to the tour.", font=('Helvetica', 14))
 
-                window.close()  
-                show_admin_page(username)  
+                window.close()
+                show_admin_page(username)
                 break
 
             except Exception as e:
@@ -247,7 +265,6 @@ def show_add_hotel():
                 con.close()
 
     window.close()
-
 #Transportation Assignment
 
 def show_add_transportation_page():
