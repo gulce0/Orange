@@ -623,15 +623,17 @@ def display_all_tours_page():
     window = sg.Window('All Tours', layout, background_color='navyblue')
 
     while True:
-        event = window.read()
-        if event == sg.WINDOW_CLOSED or event == 'Back':
-            break
-        if event == "Log Out":
-          sg.popup("Logged out successfully")
-          break
-    
-    window.close()
+        event, values = window.read()
+        if event == sg.WINDOW_CLOSED or event == 'Log Out':
+            window.close()
+            return
 
+        if event == "Back":
+            window.close()
+            show_admin_page(username)
+            break
+
+    window.close()
 
 #TOURGUIDE PAGES  
 
