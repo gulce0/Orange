@@ -447,98 +447,151 @@ def show_admin_page(username):
 
 def show_tourguide_selection_page():
 
-    tourguides = ('Chris Adams', 'Susan Clark', 'David Martin', 'Linda White', 'Robert King' )
+    #tourguides = ('Chris Adams', 'Susan Clark', 'David Martin', 'Linda White', 'Robert King' )
 
     
     con = sqlite3.connect('Project.db')
     cur = con.cursor()
-    cur.execute("SELECT MAX(tid) FROM Tour")
-    result1 = cur.fetchone()
-    tour_code = result1[0]
 
-    cur.execute("SELECT stdate,endate FROM Tour WHERE tid = ?",  (tour_code,))
-    result2 = cur.fetchone()
-    stdate = result2[0]
-    endate = result2[1]
+    # Get the tours from the database
+    cur.execute("SELECT tid, tname, stdate, endate FROM Tour")
+    tours = cur.fetchall()
     con.close()
-
-    # Convert the start and end dates to datetime objects
-    start_date_obj = datetime.strptime(stdate, '%Y-%m-%d')
-    end_date_obj = datetime.strptime(endate, '%Y-%m-%d')
-
-    # Generate a list of dates between start_date_obj and end_date_obj
-    available_dates = []
-    current_date = start_date_obj
-    while current_date <= end_date_obj:
-        available_dates.append(current_date.strftime('%Y-%m-%d'))
-        current_date += timedelta(days=1)
-    assigned_tourguide = {date: None for date in available_dates}
 
 
     layout = [
-        [sg.Text("Choose Tourguides of Tour", font=('Helvetica', 16), background_color='navyblue', text_color='white')],
-        [sg.Text("Available Dates", font=('Helvetica', 16))], 
-        [sg.Listbox(available_dates, key="selected_dates", size=(10, 10))],
-        [sg.Text("Available Tourguides", font=('Helvetica', 16))],
-        [sg.Listbox(tourguides, size=(15, len(tourguides)), key='chosen_tourguide', select_mode='multiple', enable_events=True)],
-        [sg.Button("Assign Tourguides", font=('Helvetica', 16))],
-        [sg.Button("Close", font=('Helvetica', 16))]
+        [sg.Text("Select a Tour to assign tourguides", font=('Helvetica', 16))],
+        [sg.Listbox(tours, size=(50, 5), key="selected_tour", select_mode="single", background_color='white', text_color='black')],
+        [sg.Button("Next", font=('Helvetica', 16)), sg.Button("Back", font=('Helvetica', 16))]
     ]
 
-
-    
-    # Create the tour guide window
-    window = sg.Window('Touruide Page', layout, background_color='navyblue')
+    window = sg.Window('Select Tour', layout, background_color='navyblue')
 
     while True:
         event, values = window.read()
-        if event == sg.WINDOW_CLOSED or event == 'Close':
+        if event == sg.WINDOW_CLOSED:
+            window.close()
+            return
+        if event == "Back":
+            window.close()
+            show_admin_page(username)
             break
-        elif event == 'Assign Tourguides':
+        
+        if event == "Next":
+            selected_tour = values["selected_tour"]
+            if not selected_tour:
+                sg.popup("Please select a tour", font=('Helvetica', 14))
+                continue
+
+            tid = selected_tour[0][0]
+            stdate = selected_tour[0][2]
+            endate = selected_tour[0][3]
+            window.close()
+
+            # Convert the start and end dates to datetime objects
+            start_date_obj = datetime.strptime(stdate, '%Y-%m-%d')
+            end_date_obj = datetime.strptime(endate, '%Y-%m-%d')
+
+            # Generate a list of dates between start_date_obj and end_date_obj
+            available_dates = []
+            current_date = start_date_obj
+            while current_date <= end_date_obj:
+                available_dates.append(current_date.strftime('%Y-%m-%d'))
+                current_date += timedelta(days=1)
+            assigned_tourguides = {date: None for date in available_dates}
+
+            # get tourguides from the database
+            con = sqlite3.connect('Project.db')
+            cur = con.cursor()
+            cur.execute("SELECT tgusername FROM Tourguide")
+            tourguides = cur.fetchall()
+            all_tourguide_names = list(set(option[0] for option in tourguides))
+            con.close()
+
+            layout = [
+                [sg.Text("Choose Tourguides of Tour", font=('Helvetica', 16))],
+                [sg.Text(f"Day interval of the chosen tour is {start_date_obj} - {end_date_obj}", background_color='navyblue', font=('Helvetica', 16))],
+                #[sg.Text("Filter by availability", font=('Helvetica', 16))],
+                #[sg.Combo(assigned_tourguides, key= "chosen_tourguide", enable_events=True)],
+                [sg.Text("Available Tourguides", background_color='navyblue', font=('Helvetica', 16))],
+                [sg.Listbox(tourguides, key="chosen_tourguide", size=(30, len(tourguides)), select_mode='multiple', background_color='white', text_color='black', enable_events=True)],
+                [sg.Button("Assign Tourguides", font=('Helvetica', 16))],
+                [sg.Button("Back", font=('Helvetica', 16))]
+            ]
+
+            layout = [[sg.Column(layout, scrollable=True, vertical_scroll_only=True, size=(600, 400))]]
+            window = sg.Window('Tourguide_Page', layout, background_color='navyblue')
+            break
+
+    def filter_tourguides(available_dates):
+
+        con = sqlite3.connect('Project.db')
+        cur = con.cursor()
+
+        # Create a set of all tour guides to start with
+        cur.execute("SELECT tgusername FROM Tourguide")
+        all_tour_guides = cur.fetchall()
+
+        for date in available_dates:
+            cur.execute("SELECT tgusername FROM Has h Tour t WHERE t.stdate <= ? AND t.endate >= ?", (date, date))
+           
+            # Remove guides who are unavailable on this date
+            unavailable_guides = {row[0] for row in cur.fetchall()}
+            all_tour_guides -= unavailable_guides
+
+        con.close()
+        return list(all_tour_guides)
+    
+    while True:
+        event, values = window.read()
+        if event == sg.WINDOW_CLOSED:
+            break
+        if event == "Back":
+            window.close()
+            show_tourguide_selection_page()
+            break
+        # Filter Process
+        if event in (available_dates):
+            all_tour_guides = filter_tourguides(available_dates)
+            window["chosen_tourguide"].update(all_tour_guides)
+
+        if event == 'Assign Tourguides':
+            
             chosen_tourguides = values['chosen_tourguide']
+
             if chosen_tourguides and len(chosen_tourguides) == 2:
                 sg.popup(f"Tourguides '{chosen_tourguides[0]}' and '{chosen_tourguides[1]}' Assigned Successfully!")
-                assign_tour_guides(tour_code, chosen_tourguides)
+                assigned_tourguides(tid , chosen_tourguides)
+                
                 break
-            elif not chosen_tourguides:
+            if not chosen_tourguides:
                 sg.popup("No tour guides selected! Please select exactly two.")
-            elif len(chosen_tourguides) < 2:
+                continue
+            if len(chosen_tourguides) < 2:
                 sg.popup("You have selected fewer than two tour guides. Please select two.")
-            elif len(chosen_tourguides) > 2:
-                sg.popup("Too many selections! Please select only two tour guides.")    
+                continue
+            if len(chosen_tourguides) > 2:
+                sg.popup("Too many selections! Please select only two tour guides.")   
+                continue 
+            
+            try:
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+                for guide in chosen_tourguides:
+                    cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (tid, guide))
+                con.commit()
+                
+            except Exception as e:
+                print(f"Error occurred: {e}", flush=True)
+            finally:
+                con.close()
+                print("Database connection closed", flush=True)
             window.close()
             display_all_tours_page()
-    window.close()
+            break
 
+            
 
-def filter_tourguides(available_dates):
-    con = sqlite3.connect('Project.db')
-    cur = con.cursor()
-
-    # Create a set of all tour guides to start with
-    cur.execute("SELECT tgusername FROM Tourguide")
-    all_tour_guides = {row[0] for row in cur.fetchall()}
-
-    for date in available_dates:
-        cur.execute("SELECT tgusername FROM Has h Tour t WHERE t.stdate <= ? AND t.endate >= ?", (date, date))
-        
-        # Remove guides who are unavailable on this date
-        unavailable_guides = {row[0] for row in cur.fetchall()}
-        all_tour_guides -= unavailable_guides
-
-    con.close()
-    return list(all_tour_guides)
-
-def assign_tour_guides(t_code, chosen_tourguides):
-    con = sqlite3.connect('Project.db')
-    cur = con.cursor()
-
-    for guide in chosen_tourguides:
-        cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (t_code, guide))
-
-    con.commit()
-    print(f"Assigned tour guides: {chosen_tourguides[0]} and {chosen_tourguides[1]} to tour ID {t_code}.")
-    con.close()
 
 def display_all_tours_page():
     con = sqlite3.connect('Project.db')
@@ -562,7 +615,7 @@ def display_all_tours_page():
         if event == sg.WINDOW_CLOSED or event == 'Back':
             break
         if event == "Log Out":
-          sg.popup("Logged out successfully!")
+          sg.popup("Logged out successfully")
           break
     
     window.close()
