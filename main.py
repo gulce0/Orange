@@ -560,6 +560,29 @@ def show_tourguide_selection_page():
         con.close()
         return list(all_tour_guides)
     
+    def assign_tour_guides(tid, chosen_tourguides):
+        try:
+            with sqlite3.connect('Project.db') as con:  # Use context manager to manage the connection
+                cur = con.cursor()
+                for guide in chosen_tourguides:
+                # Check if the tour guide is already assigned to this tour
+                    cur.execute("SELECT 1 FROM Has WHERE tid = ? AND tgusername = ?", (tid, guide))
+                    if cur.fetchone():
+                        sg.popup(f"Tour guide '{guide}' is already assigned to this tour.Select another one.")
+                    else:
+                        cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (tid, guide))
+            
+                        sg.popup(f"Tourguides {chosen_tourguides} assigned successfully!")
+                con.commit()
+        except sqlite3.IntegrityError as e:
+            sg.popup(f"Integrity error occurred: {e}")
+        except Exception as e:
+            sg.popup(f"Error occurred: {e}")
+        finally:
+            print("Database connection closed")
+    
+
+    
     while True:
         event, values = window.read()
         if event == sg.WINDOW_CLOSED:
@@ -577,11 +600,12 @@ def show_tourguide_selection_page():
             chosen_tourguides = values['chosen_tourguide']
 
             if chosen_tourguides and len(chosen_tourguides) >= 1:
-                sg.popup(f"Tourguides {chosen_tourguides} Assigned Successfully!")
+                assign_tour_guides(tid, chosen_tourguides)
                 
                 try:
                     con = sqlite3.connect('Project.db')
                     cur = con.cursor()
+                    
                     for guide in chosen_tourguides:
                         cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (tid, guide))
                     con.commit()
