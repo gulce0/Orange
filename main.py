@@ -463,10 +463,7 @@ def show_admin_page(username):
     window.close()
 
 def show_tourguide_selection_page():
-
-    #tourguides = ('Chris Adams', 'Susan Clark', 'David Martin', 'Linda White', 'Robert King' )
-
-    
+ 
     con = sqlite3.connect('Project.db')
     cur = con.cursor()
 
@@ -520,18 +517,22 @@ def show_tourguide_selection_page():
             # get tourguides from the database
             con = sqlite3.connect('Project.db')
             cur = con.cursor()
-            cur.execute("SELECT tgusername FROM Tourguide")
-            tourguides = cur.fetchall()
-            all_tourguide_names = list(set(option[0] for option in tourguides))
+            cur.execute("""
+                SELECT u.name || ' ' || u.surname 
+                FROM User u 
+                JOIN Tourguide t ON t.tgusername = u.username
+            """)
+            tourguides = [row[0] for row in cur.fetchall()]
+            #all_tourguide_names = list(set(option[0] for option in tourguides))
             con.close()
 
             layout = [
                 [sg.Text("Choose Tourguides of Tour", font=('Helvetica', 16))],
-                [sg.Text(f"Day interval of the chosen tour is {start_date_obj} - {end_date_obj}", background_color='navyblue', font=('Helvetica', 16))],
+                [sg.Text(f"Day interval of the chosen tour is {start_date_obj} - {end_date_obj}", font=('Helvetica', 16))],
                 #[sg.Text("Filter by availability", font=('Helvetica', 16))],
                 #[sg.Combo(assigned_tourguides, key= "chosen_tourguide", enable_events=True)],
-                [sg.Text("Available Tourguides", background_color='navyblue', font=('Helvetica', 16))],
-                [sg.Listbox(tourguides, key="chosen_tourguide", size=(30, len(tourguides)), select_mode='multiple', background_color='white', text_color='black', enable_events=True)],
+                [sg.Text("Available Tourguides", font=('Helvetica', 16))],
+                [sg.Listbox(tourguides, key="chosen_tourguide", size=(15, len(tourguides)), select_mode='multiple', background_color='white', text_color='black', enable_events=True)],
                 [sg.Button("Assign Tourguides", font=('Helvetica', 16))],
                 [sg.Button("Back", font=('Helvetica', 16))]
             ]
@@ -546,11 +547,11 @@ def show_tourguide_selection_page():
         cur = con.cursor()
 
         # Create a set of all tour guides to start with
-        cur.execute("SELECT tgusername FROM Tourguide")
+        cur.execute("SELECT u.name || ' ' || u.surname FROM User u JOIN Tourguide t ON t.tgusername = u.username")
         all_tour_guides = cur.fetchall()
 
         for date in available_dates:
-            cur.execute("SELECT tgusername FROM Has h Tour t WHERE t.stdate <= ? AND t.endate >= ?", (date, date))
+            cur.execute("SELECT u.name || ' ' || u.surname FROM User u Has h Tour t JOIN Tourguide t ON t.tgusername = u.username WHERE t.stdate <= ? AND t.endate >= ?"  , (date, date))
            
             # Remove guides who are unavailable on this date
             unavailable_guides = {row[0] for row in cur.fetchall()}
@@ -575,8 +576,8 @@ def show_tourguide_selection_page():
         if event == 'Assign Tourguides':
             chosen_tourguides = values['chosen_tourguide']
 
-            if chosen_tourguides and len(chosen_tourguides) == 2:
-                sg.popup(f"Tourguides '{chosen_tourguides[0]}' and '{chosen_tourguides[1]}' Assigned Successfully!")
+            if chosen_tourguides and len(chosen_tourguides) >= 1:
+                sg.popup(f"Tourguides {chosen_tourguides} Assigned Successfully!")
                 
                 try:
                     con = sqlite3.connect('Project.db')
@@ -595,14 +596,9 @@ def show_tourguide_selection_page():
                 display_all_tours_page()  # Navigate to display_all_tours_page
                 break
             if not chosen_tourguides:
-                sg.popup("No tour guides selected! Please select exactly two.")
+                sg.popup("No tour guides selected! Please select.")
                 continue
-            if len(chosen_tourguides) < 2:
-                sg.popup("You have selected fewer than two tour guides. Please select two.")
-                continue
-            if len(chosen_tourguides) > 2:
-                sg.popup("Too many selections! Please select only two tour guides.")   
-                continue 
+            
 
 
 def display_all_tours_page():
