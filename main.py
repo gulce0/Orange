@@ -629,16 +629,31 @@ def display_all_tours_page():
     con = sqlite3.connect('Project.db')
     cur = con.cursor() 
 
-    cur.execute("SELECT * FROM Tour")
+
+  # SQL query to fetch tours and their assigned tour guides using subqueries
+    query = """
+    SELECT 
+        t.tid, 
+        t.tname, 
+        t.stdate, 
+        t.endate, 
+        t.maxcap, 
+        t.itinerary, 
+        t.price,
+        (SELECT GROUP_CONCAT(u.name || ' ' || u.surname, ', ') 
+         FROM Has h, User u
+         WHERE h.tgusername = u.username AND h.tid = t.tid) AS tourguides
+    FROM Tour t
+    """
+    cur.execute(query)
     tours = cur.fetchall()
     con.close()
 
     layout = [
         [sg.Text("All Tours in the System", font=('Helvetica', 16))],
-        [sg.Table(values=tours, headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Maximum Capacity", "Itinerary", "Price"],justification='center', auto_size_columns=False, num_rows=min(len(tours), 10))],
+        [sg.Table(values=tours, headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Maximum Capacity", "Itinerary", "Price", "Tourguides"], justification='center', auto_size_columns=False, num_rows=min(len(tours), 10))],
         [sg.Button("Log Out")], [sg.Button("Back")]
     ]
-
 
     window = sg.Window('All Tours', layout, background_color='navyblue')
 
