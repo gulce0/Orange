@@ -344,7 +344,9 @@ def show_add_transportation_page():
                 [sg.Text("Available Transportation Options", font=('Helvetica', 16))],
                 [sg.Listbox(transportation_options, key="transportation_options", size=(30, len(transportation_options)), select_mode='single', enable_events=True)],
                 [sg.Button("Assign Transportation", font=('Helvetica', 16))],
-                [sg.Button("Back", font=('Helvetica', 16))]
+                [sg.Button("Back", font=('Helvetica', 16))],
+                [sg.Button("Go to Admin Page", font=('Helvetica', 16))]
+
             ]
 
             layout = [[sg.Column(layout, scrollable=True, vertical_scroll_only=True, size=(600, 400))]]
@@ -363,6 +365,10 @@ def show_add_transportation_page():
 
     while True:
         event, values = window.read()
+
+        if event == "Go to Admin Page":
+            window.close()
+            show_admin_page(username)
         if event == sg.WINDOW_CLOSED:
             break
         if event == "Back":
@@ -405,15 +411,39 @@ def show_add_transportation_page():
                 print(f"Inserting: {t_type}, {t_start}, {t_destination}", flush=True)
                 con = sqlite3.connect('Project.db')
                 cur = con.cursor()
-                
-            except Exception as e:
-                print(f"Error occurred: {e}", flush=True)
+                # Check for existing assignments for the selected dates
+                cur.execute("SELECT COUNT(*) FROM Assign WHERE tid = ? AND sdate <= ? AND edate >= ?", (tid, selected_end_date, selected_start_date))
+                result = cur.fetchone()
+                if result[0] > 0:
+                    sg.popup("Transportation already assigned for the selected dates.", font=('Helvetica', 14))
+                    continue
+
+                # Fetch the tcode from the Transportation table
+                cur.execute("SELECT tcode FROM Transportation WHERE type = ? AND starting_point = ? AND destination = ?", (t_type, t_start, t_destination))
+                result = cur.fetchone()
+                if result is None:
+                    sg.popup("Transportation option not found in the database.", font=('Helvetica', 14))
+                    continue
+                t_code = result[0]
+
+                # Ensure dates are in the correct format
+                try:
+                    selected_start_date = datetime.strptime(selected_start_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+                    selected_end_date = datetime.strptime(selected_end_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+                except ValueError:
+                    sg.popup("Invalid date format. Please use YYYY-MM-DD.", font=('Helvetica', 14))
+                    continue
+
+                # Insert the new assignment
+                cur.execute("INSERT INTO Assign (tid, tcode, sdate, edate) VALUES (?, ?, ?, ?)",
+                            (tid, t_code, selected_start_date, selected_end_date))
+                con.commit()
+                print("Insert committed successfully", flush=True)
+                sg.popup('Transportation created successfully', font=('Helvetica', 14))
             finally:
                 con.close()
                 print("Database connection closed", flush=True)
-            window.close()
-            show_tourguide_selection_page()
-            break
+
 
     window.close()
 
