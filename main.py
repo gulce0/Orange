@@ -497,6 +497,78 @@ def show_admin_page(username):
             break
     window.close()
 
+
+
+
+
+def filter_tourguides(selected_start_date, selected_end_date):
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+
+    # Convert the selected start and end dates to datetime objects
+    selected_start_date = datetime.strptime(selected_start_date, '%Y-%m-%d')
+    selected_end_date = datetime.strptime(selected_end_date, '%Y-%m-%d')
+
+    # Fetch all tour guides
+    cur.execute("SELECT tgusername, name, surname FROM TourGuide JOIN User ON TourGuide.tgusername = User.username")
+    all_tour_guides = cur.fetchall()
+
+    available_tour_guides = []
+
+    for guide in all_tour_guides:
+        tgusername = guide[0]
+        # Fetch the assigned tours for the tour guide
+        cur.execute("SELECT t.stdate, t.endate FROM Has h JOIN Tour t ON h.tid = t.tid WHERE h.tgusername = ?", (tgusername,))
+        assigned_tours = cur.fetchall()
+
+        # Check if the tour guide is available during the selected tour's dates
+        is_available = True
+        for tour in assigned_tours:
+            tour_start_date = datetime.strptime(tour[0], '%Y-%m-%d')
+            tour_end_date = datetime.strptime(tour[1], '%Y-%m-%d')
+            if not (selected_end_date < tour_start_date or selected_start_date > tour_end_date):
+                is_available = False
+                break
+
+        if is_available:
+            available_tour_guides.append(f"{guide[1]} {guide[2]}")
+
+    con.close()
+    return available_tour_guides
+
+def assign_tour_guides(tid, chosen_tourguides):
+    try:
+        with sqlite3.connect('Project.db') as con:  # Use context manager to manage the connection
+            cur = con.cursor()
+            for guide in chosen_tourguides:
+                # Fetch the username based on the name and surname
+                cur.execute("SELECT username FROM User WHERE name || ' ' || surname = ?", (guide,))
+                guide_username = cur.fetchone()
+                if guide_username:
+                    guide_username = guide_username[0]
+                    # Check if the tour guide is already assigned to this tour
+                    cur.execute("SELECT 1 FROM Has WHERE tid = ? AND tgusername = ?", (tid, guide_username))
+                    if cur.fetchone():
+                        sg.popup(f"Tour guide '{guide}' is already assigned to this tour. Select another one.")
+                    else:
+                        cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (tid, guide_username))
+            con.commit()
+    except sqlite3.IntegrityError as e:
+        sg.popup(f"Integrity error occurred: {e}")
+    except Exception as e:
+        sg.popup(f"Error occurred: {e}")
+    finally:
+        print("Database connection closed")
+
+
+
+
+
+
+
+
+
+
 def show_tourguide_selection_page():
  
     con = sqlite3.connect('Project.db')
@@ -541,6 +613,9 @@ def show_tourguide_selection_page():
             start_date_obj = datetime.strptime(stdate, '%Y-%m-%d')
             end_date_obj = datetime.strptime(endate, '%Y-%m-%d')
 
+            available_tourguides = filter_tourguides(stdate, endate)
+
+            #BU KOD PİECE GEREKSİZ OLABİLİR
             # Generate a list of dates between start_date_obj and end_date_obj
             available_dates = []
             current_date = start_date_obj
@@ -548,6 +623,9 @@ def show_tourguide_selection_page():
                 available_dates.append(current_date.strftime('%Y-%m-%d'))
                 current_date += timedelta(days=1)
             assigned_tourguides = {date: None for date in available_dates}
+
+
+
 
             # get tourguides from the database
             con = sqlite3.connect('Project.db')
@@ -567,7 +645,7 @@ def show_tourguide_selection_page():
                 #[sg.Text("Filter by availability", font=('Helvetica', 16))],
                 #[sg.Combo(assigned_tourguides, key= "chosen_tourguide", enable_events=True)],
                 [sg.Text("Available Tourguides", font=('Helvetica', 16))],
-                [sg.Listbox(tourguides, key="chosen_tourguide", size=(15, len(tourguides)), select_mode='multiple', background_color='white', text_color='black', enable_events=True)],
+                [sg.Listbox(available_tourguides, key="chosen_tourguide", size=(15, len(tourguides)), select_mode='multiple', background_color='white', text_color='black', enable_events=True)],
                 [sg.Button("Assign Tourguides", font=('Helvetica', 16))],
                 [sg.Button("Back", font=('Helvetica', 16))]
             ]
@@ -576,50 +654,7 @@ def show_tourguide_selection_page():
             window = sg.Window('Tourguide_Page', layout, background_color='navyblue')
             break
 
-    def filter_tourguides(available_dates):
-
-        con = sqlite3.connect('Project.db')
-        cur = con.cursor()
-
-        # Create a set of all tour guides to start with
-        cur.execute("SELECT u.name || ' ' || u.surname FROM User u JOIN Tourguide t ON t.tgusername = u.username")
-        all_tour_guides = cur.fetchall()
-
-        for date in available_dates:
-            cur.execute("SELECT u.name || ' ' || u.surname FROM User u Has h Tour t JOIN Tourguide t ON t.tgusername = u.username WHERE t.stdate <= ? AND t.endate >= ?"  , (date, date))
-           
-            # Remove guides who are unavailable on this date
-            unavailable_guides = {row[0] for row in cur.fetchall()}
-            all_tour_guides -= unavailable_guides
-
-        con.close()
-        return list(all_tour_guides)
-    
-    def assign_tour_guides(tid, chosen_tourguides):
-        try:
-            with sqlite3.connect('Project.db') as con:  # Use context manager to manage the connection
-                cur = con.cursor()
-                for guide in chosen_tourguides:
-                    # Fetch the username based on the name and surname
-                    cur.execute("SELECT username FROM User WHERE name || ' ' || surname = ?", (guide,))
-                    guide_username = cur.fetchone()
-                    if guide_username:
-                        guide_username = guide_username[0]
-                        # Check if the tour guide is already assigned to this tour
-                        cur.execute("SELECT 1 FROM Has WHERE tid = ? AND tgusername = ?", (tid, guide_username))
-                        if cur.fetchone():
-                            sg.popup(f"Tour guide '{guide}' is already assigned to this tour. Select another one.")
-                        else:
-                            cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (tid, guide_username))
-                con.commit()
-        except sqlite3.IntegrityError as e:
-            sg.popup(f"Integrity error occurred: {e}")
-        except Exception as e:
-            sg.popup(f"Error occurred: {e}")
-        finally:
-            print("Database connection closed")
-    
-
+ 
     
     while True:
         event, values = window.read()
@@ -629,31 +664,13 @@ def show_tourguide_selection_page():
             window.close()
             show_tourguide_selection_page()
             break
-        # Filter Process
-        if event in (available_dates):
-            all_tour_guides = filter_tourguides(available_dates)
-            window["chosen_tourguide"].update(all_tour_guides)
-
+        
         if event == 'Assign Tourguides':
             chosen_tourguides = values['chosen_tourguide']
             print(f"Chosen tour guides: {chosen_tourguides}", flush=True)
             if chosen_tourguides and len(chosen_tourguides) >= 1:
                 assign_tour_guides(tid, chosen_tourguides)
-                
-                try:
-                    con = sqlite3.connect('Project.db')
-                    cur = con.cursor()
-                    
-                    for guide in chosen_tourguides:
-                        cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (tid, guide))
-                    con.commit()
-                    
-                except Exception as e:
-                    print(f"Error occurred: {e}", flush=True)
-                finally:
-                    con.close()
-                    print("Database connection closed", flush=True)
-                
+            
                 window.close()
                 display_all_tours_page(username)  # Navigate to display_all_tours_page
                 break
