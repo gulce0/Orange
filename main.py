@@ -463,6 +463,7 @@ def show_admin_page(username):
         [sg.Button('Add Transportation', button_color=('white', 'navyblue'))],
         [sg.Button('Add Hotel', button_color=('white', 'navyblue'))],
         [sg.Button('Insert Tourguide', button_color=('white', 'navyblue'))],
+        [sg.Button('Display All Tours', button_color=('white', 'navyblue'))],  # New button added
         [sg.Button('Logout', button_color=('white', 'navyblue'))]
     ]
     
@@ -489,6 +490,10 @@ def show_admin_page(username):
         if event == 'Insert Tourguide':
             window.close()
             show_tourguide_selection_page()
+            break
+        if event == 'Display All Tours':  # Handle the new button event
+            window.close()
+            display_all_tours_page(username)
             break
     window.close()
 
@@ -595,14 +600,17 @@ def show_tourguide_selection_page():
             with sqlite3.connect('Project.db') as con:  # Use context manager to manage the connection
                 cur = con.cursor()
                 for guide in chosen_tourguides:
-                # Check if the tour guide is already assigned to this tour
-                    cur.execute("SELECT 1 FROM Has WHERE tid = ? AND tgusername = ?", (tid, guide))
-                    if cur.fetchone():
-                        sg.popup(f"Tour guide '{guide}' is already assigned to this tour.Select another one.")
-                    else:
-                        cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (tid, guide))
-            
-                        sg.popup(f"Tourguides {chosen_tourguides} assigned successfully!")
+                    # Fetch the username based on the name and surname
+                    cur.execute("SELECT username FROM User WHERE name || ' ' || surname = ?", (guide,))
+                    guide_username = cur.fetchone()
+                    if guide_username:
+                        guide_username = guide_username[0]
+                        # Check if the tour guide is already assigned to this tour
+                        cur.execute("SELECT 1 FROM Has WHERE tid = ? AND tgusername = ?", (tid, guide_username))
+                        if cur.fetchone():
+                            sg.popup(f"Tour guide '{guide}' is already assigned to this tour. Select another one.")
+                        else:
+                            cur.execute('INSERT INTO Has (tid, tgusername) VALUES (?, ?)', (tid, guide_username))
                 con.commit()
         except sqlite3.IntegrityError as e:
             sg.popup(f"Integrity error occurred: {e}")
@@ -628,7 +636,7 @@ def show_tourguide_selection_page():
 
         if event == 'Assign Tourguides':
             chosen_tourguides = values['chosen_tourguide']
-
+            print(f"Chosen tour guides: {chosen_tourguides}", flush=True)
             if chosen_tourguides and len(chosen_tourguides) >= 1:
                 assign_tour_guides(tid, chosen_tourguides)
                 
@@ -647,7 +655,7 @@ def show_tourguide_selection_page():
                     print("Database connection closed", flush=True)
                 
                 window.close()
-                display_all_tours_page()  # Navigate to display_all_tours_page
+                display_all_tours_page(username)  # Navigate to display_all_tours_page
                 break
             if not chosen_tourguides:
                 sg.popup("No tour guides selected! Please select.")
@@ -655,12 +663,11 @@ def show_tourguide_selection_page():
             
 
 
-def display_all_tours_page():
+def display_all_tours_page(username):
     con = sqlite3.connect('Project.db')
-    cur = con.cursor() 
+    cur = con.cursor()
 
-
-  # SQL query to fetch tours and their assigned tour guides using subqueries
+    # SQL query to fetch tours and their assigned tour guides using subqueries
     query = """
     SELECT 
         t.tid, 
@@ -681,8 +688,16 @@ def display_all_tours_page():
 
     layout = [
         [sg.Text("All Tours in the System", font=('Helvetica', 16))],
-        [sg.Table(values=tours, headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Maximum Capacity", "Itinerary", "Price", "Tourguides"], justification='center', auto_size_columns=False, num_rows=min(len(tours), 10))],
-        [sg.Button("Log Out")], [sg.Button("Back")]
+        [sg.Table(
+            values=tours, 
+            headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Maximum Capacity", "Itinerary", "Price", "Tourguides"], 
+            col_widths=[10, 20, 15, 15, 20, 30, 10, 50],  # Adjust the column widths as needed
+            justification='center', 
+            auto_size_columns=False, 
+            num_rows=min(len(tours), 20)
+        )],
+        [sg.Button("Log Out")], 
+        [sg.Button("Back")]
     ]
 
     window = sg.Window('All Tours', layout, background_color='navyblue')
@@ -691,7 +706,8 @@ def display_all_tours_page():
         event, values = window.read()
         if event == sg.WINDOW_CLOSED or event == 'Log Out':
             window.close()
-            return
+            show_login_page()
+            break
 
         if event == "Back":
             window.close()
