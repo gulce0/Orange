@@ -702,25 +702,72 @@ def display_all_tours_page():
 
 #TOURGUIDE PAGES  
 
+def show_tourguide_page(username):
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+    
+    # Fetch the tour guide's name
+    cur.execute("SELECT name, surname FROM User u JOIN Has h ON u.username = h.tgusername WHERE u.username = ?", (username,))
+    guide = cur.fetchone()
+    guide_name = f"{guide[0]} {guide[1]}" if guide else "Unknown Guide"
 
-def show_tourguide_page():
-    # Define the layout of the tour guide window
+    # Fetch the assigned tours for the tour guide
+    cur.execute("SELECT tid FROM Has WHERE tgusername = ?", (username,))
+    assigned_tours = cur.fetchall()
+
+    tours = []
+    for tid_tuple in assigned_tours:
+        tid = tid_tuple[0]
+        cur.execute("SELECT tid, tname, stdate, endate, maxcap, itinerary, price FROM Tour WHERE tid = ?", (tid,))
+        tour = cur.fetchone()
+        if tour:
+            tours.append(tour)
+
     layout = [
         [sg.Text('Tour Guide Page')],
-        [sg.Button('Exit')]
+        [sg.Text(f"Welcome, {guide_name}!", font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        [sg.Text("Your Scheduled Tours:", font=('Helvetica', 14))],
+        [sg.Table(
+            values=tours,
+            headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Max Capacity", "Itinerary", "Price"],
+            justification='center',
+            auto_size_columns=False,
+            num_rows=min(len(tours), 10),
+        )],
+        [sg.Button('Log Out', button_color=('white', 'navyblue'))]
     ]
-    
+
     # Create the tour guide window
     window = sg.Window('Tour Guide Page', layout, background_color='navyblue')
     
     # Event loop to process events and get values of inputs
     while True:
         event, values = window.read()
-        if event == sg.WIN_CLOSED or event == 'Exit':
+        if event == sg.WIN_CLOSED or event == 'Log Out':
             break
     
     window.close()
 
+# Example login function to call show_tourguide_page
+def login(username, password):
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+    cur.execute("SELECT role FROM User WHERE username = ? AND password = ?", (username, password))
+    result = cur.fetchone()
+    con.close()
+
+    if result:
+        role = result[0]
+        if role == 'tourguide':
+            show_tourguide_page(username)
+        elif role == 'admin':
+            show_admin_page(username)
+        else:
+            sg.popup("Unknown role", font=('Helvetica', 14))
+    else:
+        sg.popup("Invalid username or password", font=('Helvetica', 14))
+
+    window.close()
 
 
 #TRAVELER PAGES
@@ -782,7 +829,7 @@ while True:
                 break
             elif role == 'tourguide':
                 window.close()
-                show_tourguide_page()
+                show_tourguide_page(username)
                 break
             elif role == 'traveler':
                 window.close()
