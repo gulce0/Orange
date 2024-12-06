@@ -73,9 +73,10 @@ def show_create_tour_form():
             itinerary = values['itinerary']
             maxcap = values['maxcap']
 
-            # Validate dates
-            if not stdate or not endate:
-                sg.popup('Please choose both starting and ending dates.', font=('Helvetica', 14))
+            # Validate all inputs are provided
+
+            if not tname or not stdate or not endate or not price or not itinerary or not maxcap:
+                sg.popup('All fields must be filled out.', font=('Helvetica', 14))
                 continue
 
             stdate_obj = datetime.strptime(stdate, '%Y-%m-%d')
