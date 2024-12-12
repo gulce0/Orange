@@ -2,6 +2,10 @@ import PySimpleGUI as sg
 import sqlite3
 from datetime import datetime, timedelta
 
+
+#branch deneme
+
+
 def get_user_role(username, password):
     con = sqlite3.connect('Project.db')
     cur = con.cursor()
