@@ -812,24 +812,416 @@ def login(username, password):
 
 
 
-def show_traveler_page():
+def show_traveler_page(username):
     # Define the layout of the traveler window
     layout = [
-        [sg.Text('Traveler Page')],
-        [sg.Button('Exit')]
+        [sg.Text('Orange Travel Agency', font=('Helvetica', 16), background_color='navyblue', text_color='orange')],
+        [sg.Button('Profile', button_color=('white', 'navyblue'), size=(16, 1))],
+        [sg.Button('My Tours', button_color=('white', 'navyblue'), size=(16, 1))],
+        [sg.Button('Tour Search', button_color=('white', 'navyblue'), size=(16, 1))],
+        [sg.Button('Exit', button_color=('white', 'navyblue'), size=(16, 1))]
     ]
     
-    # Create the traveler window
-    window = sg.Window('Traveler Page', layout, background_color='navyblue')
+    # Create the traveler window with a larger size
+    window = sg.Window('Traveler Page', layout, background_color='navyblue', size=(200, 200))
     
     # Event loop to process events and get values of inputs
     while True:
         event, values = window.read()
         if event == sg.WIN_CLOSED or event == 'Exit':
             break
+        if event == 'Profile':
+            window.close()
+            show_profile_page(username)
+            break
+        if event == 'Tour Search':
+            window.close()
+            show_tour_search_page(username)
+            break
+        if event == 'My Tours':
+            window.close()
+            show_my_tours_page(username)
+            break
+    
     
     window.close()
 
+
+
+def show_profile_page(username):
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+    
+    # Fetch the traveler's name and surname
+    cur.execute("SELECT name, surname FROM User WHERE username = ?", (username,))
+    user = cur.fetchone()
+    con.close()
+    
+    if user:
+        name, surname = user
+    else:
+        name, surname = "Unknown", "User"
+
+    layout = [
+        [sg.Text(f'{name} {surname}', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        [sg.Text('Add New Contact Number', background_color='navyblue', text_color='white'), sg.InputText(key='contact_number')],
+        [sg.Text('Add New Credit Card Information', font=('Helvetica', 13), background_color='navyblue', text_color='white')],
+        [sg.Text('Card Number', background_color='navyblue', text_color='white'), sg.InputText(key='card_number')],
+        [sg.Text('Bank', background_color='navyblue', text_color='white'), sg.InputText(key='bank')],
+        [sg.Text('CVV', background_color='navyblue', text_color='white'), sg.InputText(key='cvv')],
+        [sg.Text('Expiration Date (MM/YY)', background_color='navyblue', text_color='white'), sg.InputText(key='expiration_date')],
+        [sg.Button('Save', button_color=('white', 'navyblue'))],
+        [sg.Button('Back', button_color=('white', 'navyblue'))]
+    ]
+
+    window = sg.Window('Profile Page', layout, background_color='navyblue')
+
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED:
+            break
+        if event == 'Back':
+            window.close()
+            show_traveler_page(username)
+            break
+        if event == 'Save':
+            contact_number = values['contact_number']
+            card_number = values['card_number']
+            bank = values['bank']
+            cvv = values['cvv']
+            expiration_date = values['expiration_date']
+
+            # Validate contact number if provided
+            if contact_number and (not contact_number.isdigit() or len(contact_number) != 10):
+                sg.popup('Please provide a valid contact number consisting of 10 digits.', font=('Helvetica', 14))
+                continue
+
+            # Validate credit card information if provided
+            if card_number or bank or cvv or expiration_date:
+                if not (card_number and bank and cvv and expiration_date):
+                    sg.popup('In order to add a card, please provide complete credit card information.', font=('Helvetica', 14))
+                    continue
+            try:
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+                if contact_number:
+                    cur.execute("UPDATE Traveler SET tr_contact_no = ? WHERE trusername = ?", (contact_number, username))
+                if card_number and bank and cvv and expiration_date:
+                    cur.execute("INSERT INTO CreditCard (cardnumber, bank, CVV, expirationdate, ownerusername) VALUES (?, ?, ?, ?, ?)",
+                                (card_number, bank, cvv, expiration_date, username))
+                con.commit()
+                sg.popup('Profile information updated successfully!', font=('Helvetica', 14))
+            except Exception as e:
+                sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
+            finally:
+                con.close()
+
+    window.close()
+
+def show_tour_search_page(username):
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+
+    # Fetch all tours that have not started yet
+    today = datetime.today().strftime('%Y-%m-%d')
+    cur.execute("SELECT tid, tname, stdate, endate FROM Tour WHERE stdate > ?", (today,))
+    tours = cur.fetchall()
+    con.close()
+
+    layout = [
+        [sg.Text('Tour Search Page', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        [sg.Text('Start Date', background_color='navyblue', text_color='white'), sg.Input(key='start_date', size=(20, 1)), sg.CalendarButton("Choose Start Date", target="start_date", format="%Y-%m-%d", close_when_date_chosen=True, begin_at_sunday_plus=1)],
+        [sg.Text('End Date', background_color='navyblue', text_color='white'), sg.Input(key='end_date', size=(20, 1)), sg.CalendarButton("Choose End Date", target="end_date", format="%Y-%m-%d", close_when_date_chosen=True, begin_at_sunday_plus=1)],
+        [sg.Button('Filter Tours', button_color=('white', 'navyblue'))],
+        [sg.Table(
+            values=tours,
+            headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date"],
+            key='tour_table',
+            justification='center',
+            auto_size_columns=False,
+            num_rows=min(len(tours), 10),
+            enable_events=True
+        )],
+        [sg.Text('Tour Details', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        [sg.Multiline(size=(60, 10), key='tour_details', disabled=True, background_color='white', text_color='black')],
+        [sg.Button('Purchase', button_color=('white', 'navyblue'))],
+        [sg.Button('Back', button_color=('white', 'navyblue'))]
+    ]
+
+    window = sg.Window('Tour Search Page', layout, background_color='navyblue')
+    
+    selected_tour_id = None
+   
+
+
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Back':
+            window.close()
+            show_traveler_page(username)
+            break
+
+        if event == 'Filter Tours':
+            start_date = values['start_date']
+            end_date = values['end_date']
+
+            if not start_date or not end_date:
+                sg.popup('Please select both start and end dates.', font=('Helvetica', 14))
+                continue
+            try:
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+                cur.execute("SELECT tid, tname, stdate, endate FROM Tour WHERE stdate >= ? AND endate <= ?", (start_date, end_date))
+                filtered_tours = cur.fetchall()
+                con.close()
+                window['tour_table'].update(filtered_tours)
+            except Exception as e:
+                sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
+
+
+
+        if event == 'tour_table':
+            selected_tour_index = values['tour_table'][0]
+            selected_tour = tours[selected_tour_index]
+            selected_tour_id = selected_tour[0]
+            try:
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+                cur.execute("SELECT maxcap, itinerary, price FROM Tour WHERE tid = ?", (selected_tour_id,))
+                tour_details = cur.fetchone()
+                
+                if tour_details:
+                    try:
+                        maxcap = int(tour_details[0])
+                    except ValueError:
+                        sg.popup(f"Invalid maximum capacity value: {tour_details[0]}", font=('Helvetica', 14))
+                        continue
+
+
+                # Fetch assigned transportation
+                cur.execute("SELECT type, starting_point, destination FROM Transportation t JOIN Assign a ON t.tcode = a.tcode WHERE a.tid = ?", (selected_tour_id,))
+                transportation = cur.fetchall()
+
+                # Fetch assigned hotels
+                cur.execute("SELECT h.city, h.brand FROM Hotel h JOIN reservation r ON h.hid = r.hid WHERE r.tid = ?", (selected_tour_id,))
+                hotels = cur.fetchall()
+
+                # Fetch assigned tour guides
+                cur.execute("SELECT u.name || ' ' || u.surname FROM User u JOIN Has h ON u.username = h.tgusername WHERE h.tid = ?", (selected_tour_id,))
+                tour_guides = cur.fetchall()
+
+                # Calculate current capacity
+                cur.execute("SELECT COUNT(*) FROM Purchase WHERE tid = ?", (selected_tour_id,))
+                purchased_count = cur.fetchone()[0]
+                current_capacity = maxcap - purchased_count
+
+                con.close()
+
+                itinerary = tour_details[1]
+                price = tour_details[2]
+                details = f"Current Capacity: {current_capacity}\nItinerary: {itinerary}\nPrice: {price}\n\n"
+                details += "Transportation:\n"
+                for t in transportation:
+                    details += f"Type: {t[0]}, Starting Point: {t[1]}, Destination: {t[2]}\n"
+                details += "\nHotels:\n"
+                for h in hotels:
+                    details += f"City: {h[0]}, Brand: {h[1]}\n"
+                details += "\nTour Guides:\n"
+                for tg in tour_guides:
+                    details += f"{tg[0]}\n"
+                window['tour_details'].update(details)
+            except Exception as e:
+                sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
+
+        if event == 'Purchase':
+            if selected_tour_id:
+                window.close()
+                show_payment_page(username, selected_tour_id)
+                break
+            else:
+                sg.popup('Please select a tour to purchase.', font=('Helvetica', 14))
+
+    window.close()
+
+def show_payment_page(username, tour_id):
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+
+    # Fetch existing credit card information for the customer
+    cur.execute("SELECT cardnumber, bank, cvv, expirationdate FROM CreditCard WHERE ownerusername = ?", (username,))
+    credit_cards = cur.fetchall()
+    con.close()
+
+    if not credit_cards:
+        credit_cards = [("No card found, you can add your information from your profile.", "")]
+
+    layout = [
+        [sg.Text('Payment Page', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        [sg.Text('Select Credit Card', background_color='navyblue', text_color='white')],
+        [sg.Listbox(values=[f"Bank: {card[1]}, Card Number: {card[0]}" for card in credit_cards], size=(50, len(credit_cards)), key='selected_card')],
+        [sg.Text('CVV', background_color='navyblue', text_color='white'), sg.InputText(key='cvv')],
+        [sg.Text('Expiration Date (MM/YY)', background_color='navyblue', text_color='white'), sg.InputText(key='expiration_date')],
+        [sg.Button('Pay', button_color=('white', 'navyblue'))],
+        [sg.Button('Back', button_color=('white', 'navyblue'))]
+    ]
+
+
+    window = sg.Window('Payment Page', layout, background_color='navyblue')
+
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Back':
+            window.close()
+            show_tour_search_page(username)
+            break
+
+        if event == 'Pay':
+            selected_card = values['selected_card']
+            entered_cvv = values['cvv']
+            entered_expiration_date = values['expiration_date']
+
+
+            if not selected_card or "No card found" in selected_card[0]:
+                sg.popup('Please select a credit card to proceed with the payment.', font=('Helvetica', 14))
+                continue
+
+            if not entered_cvv or not entered_expiration_date:
+                sg.popup('Please enter CVV and expiration date.', font=('Helvetica', 14))
+                continue
+
+            # Get the index of the selected card
+            selected_card_index = [i for i, card in enumerate(credit_cards) if f"Bank: {card[1]}, Card Number: {card[0]}" == selected_card[0]][0]
+            card_info = credit_cards[selected_card_index]
+            card_number = card_info[0]
+            bank = card_info[1]
+            correct_cvv = str(card_info[2]).strip()
+            correct_expiration_date = card_info[3].strip()
+
+            # Debugging statements
+            print(f"Entered CVV: {entered_cvv}, Correct CVV: {correct_cvv}", flush=True)
+            print(f"Entered Expiration Date: {entered_expiration_date}, Correct Expiration Date: {correct_expiration_date}", flush=True)
+            print(f"Selected Card: {card_info}", flush=True)
+
+            # Validate CVV and expiration date
+            if entered_cvv != correct_cvv or entered_expiration_date != correct_expiration_date:
+                sg.popup('Invalid CVV or expiration date. Please enter the correct information.', font=('Helvetica', 14))
+                continue
+
+            try:
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+
+                # Insert the purchase into the Purchase table
+                cur.execute("INSERT INTO Purchase (tid, trusername) VALUES (?, ?)", (tour_id, username))
+
+                con.commit()
+                con.close()
+
+                sg.popup('Payment successful! You have purchased the tour.', font=('Helvetica', 14))
+                window.close()
+                show_traveler_page(username)
+                break
+            except Exception as e:
+                sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
+
+    window.close()
+
+
+def show_my_tours_page(username):
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+
+    # Fetch purchased tours for the user
+    cur.execute("""
+        SELECT t.tid, t.tname, t.stdate, t.endate, t.itinerary, t.price
+        FROM Tour t
+        JOIN Purchase p ON t.tid = p.tid
+        WHERE p.trusername = ?
+    """, (username,))
+    purchased_tours = cur.fetchall()
+    con.close()        
+
+
+    layout = [
+        [sg.Text('My Tours', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        [sg.Table(
+            values=purchased_tours,
+            headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Itinerary", "Price"],
+            key='purchased_tours_table',
+            justification='center',
+            auto_size_columns=False,
+            num_rows=min(len(purchased_tours), 10),
+            enable_events=True
+        )],
+        [sg.Multiline(size=(60, 10), key='tour_details', disabled=True, background_color='white', text_color='black')],
+        [sg.Button('Back', button_color=('white', 'navyblue'))]
+    ]
+
+    window = sg.Window('My Tours', layout, background_color='navyblue')
+
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Back':
+            window.close()
+            show_traveler_page(username)
+            break
+
+        if event == 'purchased_tours_table':
+            selected_tour_index = values['purchased_tours_table'][0]
+            selected_tour = purchased_tours[selected_tour_index]
+            tour_id = selected_tour[0]
+
+            try:
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+                cur.execute("SELECT maxcap, itinerary, price FROM Tour WHERE tid = ?", (tour_id,))
+                tour_details = cur.fetchone()
+
+                if tour_details:
+                    try:
+                        maxcap = int(tour_details[0])
+                    except ValueError:
+                        sg.popup(f"Invalid maximum capacity value: {tour_details[0]}", font=('Helvetica', 14))
+                        continue
+
+                    # Calculate current capacity
+                    cur.execute("SELECT COUNT(*) FROM Purchase WHERE tid = ?", (tour_id,))
+                    purchased_count = cur.fetchone()[0]
+                    current_capacity = maxcap - purchased_count
+
+                    # Fetch assigned transportation
+                    cur.execute("SELECT type, starting_point, destination FROM Transportation t JOIN Assign a ON t.tcode = a.tcode WHERE a.tid = ?", (tour_id,))
+                    transportation = cur.fetchall()
+
+                    # Fetch assigned hotels
+                    cur.execute("SELECT h.city, h.brand FROM Hotel h JOIN reservation r ON h.hid = r.hid WHERE r.tid = ?", (tour_id,))
+                    hotels = cur.fetchall()
+
+                    # Fetch assigned tour guides
+                    cur.execute("SELECT u.name || ' ' || u.surname FROM User u JOIN Has h ON u.username = h.tgusername WHERE h.tid = ?", (tour_id,))
+                    tour_guides = cur.fetchall()
+
+                    con.close()
+
+                    itinerary = tour_details[1]
+                    price = tour_details[2]
+                    details = f"Current Capacity: {current_capacity}\nItinerary: {itinerary}\nPrice: {price}\n\n"
+                    details += "Transportation:\n"
+                    for t in transportation:
+                        details += f"Type: {t[0]}, Starting Point: {t[1]}, Destination: {t[2]}\n"
+                    details += "\nHotels:\n"
+                    for h in hotels:
+                        details += f"City: {h[0]}, Brand: {h[1]}\n"
+                    details += "\nTour Guides:\n"
+                    for tg in tour_guides:
+                        details += f"{tg[0]}\n"
+                    window['tour_details'].update(details)
+            except Exception as e:
+                sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
+
+    window.close()
+
+                
 
 
 
@@ -874,7 +1266,7 @@ def show_login_page():
                     break
                 elif role == 'traveler':
                     window.close()
-                    show_traveler_page()
+                    show_traveler_page(username)
                     break
                 else:
                     sg.popup('Invalid username or password')
