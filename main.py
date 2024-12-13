@@ -837,48 +837,116 @@ def show_traveler_page():
 
 
 # Define the layout of the login window
-layout = [
-    [sg.Text('Welcome to Orange Travel Agency Platform, please enter your information', font=('Helvetica', 12), justification='center', background_color='navyblue', text_color='white')],
-    [sg.Text('Username'), sg.InputText(key='username')],
-    [sg.Text('Password'), sg.InputText(key='password', password_char='*')],
-    [sg.Button('Login')]
-]
 
-# Create the login window
-window = sg.Window('Login', layout, background_color='navyblue')
+def show_login_page():
+    layout = [
+        [sg.Text('Welcome to Orange Travel Agency Platform, please enter your information', font=('Helvetica', 12), justification='center', background_color='navyblue', text_color='white')],
+        [sg.Text('Username'), sg.InputText(key='username')],
+        [sg.Text('Password'), sg.InputText(key='password', password_char='*')],
+        [sg.Button('Login', button_color=('white', 'navyblue'))],
+        [sg.Text('Are you new?', background_color='navyblue', text_color='white'), sg.Text('Sign up now', font=('Helvetica', 12, 'underline'), text_color='blue', enable_events=True, key='Sign Up')]
+    ]
 
-# Event loop to process events and get values of inputs
-while True:
-    event, values = window.read()
-    if event == sg.WIN_CLOSED:
-        break
-    if event == 'Login':
-        username = values['username']
-        password = values['password']
-        if not username:
-            sg.popup('Username must be entered')
-        elif not password:
-            sg.popup('Password must be entered')
-        else:
-            role, name = get_user_role(username, password)
-            if role == 'admin':
-                window.close()
-                show_admin_page(username)
-                break
-            elif role == 'tourguide':
-                window.close()
-                show_tourguide_page(username)
-                break
-            elif role == 'traveler':
-                window.close()
-                show_traveler_page()
-                break
+    # Create the login window
+    window = sg.Window('Login', layout, background_color='navyblue')
+
+    # Event loop to process events and get values of inputs
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED:
+            break
+        if event == 'Login':
+            username = values['username']
+            password = values['password']
+            if not username:
+                sg.popup('Username must be entered')
+            elif not password:
+                sg.popup('Password must be entered')
             else:
-                sg.popup('Invalid username or password')
+                role, name = get_user_role(username, password)
+                if role == 'admin':
+                    window.close()
+                    show_admin_page(username)
+                    break
+                elif role == 'tourguide':
+                    window.close()
+                    show_tourguide_page(username)
+                    break
+                elif role == 'traveler':
+                    window.close()
+                    show_traveler_page()
+                    break
+                else:
+                    sg.popup('Invalid username or password')
+        if event == 'Sign Up':
+            window.close()
+            show_signup_page()
+            break
 
-window.close()
+    window.close()
+
+# Function to show the signup page
+def show_signup_page():
+    layout = [
+        [sg.Text('Sign Up', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        [sg.Text('Name', background_color='navyblue', text_color='white'), sg.InputText(key='name')],
+        [sg.Text('Surname', background_color='navyblue', text_color='white'), sg.InputText(key='surname')],
+        [sg.Text('Username', background_color='navyblue', text_color='white'), sg.InputText(key='username')],
+        [sg.Text('Password', background_color='navyblue', text_color='white'), sg.InputText(key='password', password_char='*')],
+        [sg.Button('Sign Up', button_color=('white', 'navyblue'))],
+        [sg.Button('Back', button_color=('white', 'navyblue'))]
+    ]
+
+    window = sg.Window('Sign Up', layout, background_color='navyblue')
+
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED:
+            break
+        if event == 'Back':
+            window.close()
+            show_login_page()
+            break
+        if event == 'Sign Up':
+            name = values['name']
+            surname = values['surname']
+            username = values['username']
+            password = values['password']
+
+            # Validate that all inputs are provided
+            if not name or not surname or not username or not password:
+                sg.popup('All fields must be filled out.', font=('Helvetica', 14))
+                continue
+            
+            try:
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+                # Check if the username already exists
+                cur.execute("SELECT username FROM User WHERE username = ?", (username,))
+                if cur.fetchone():
+                    sg.popup('Username already exists. Please choose a different username.', font=('Helvetica', 14))
+                    continue
+
+                # Insert the new user into the User table
+                cur.execute("INSERT INTO User (username, password, name, surname) VALUES (?, ?, ?, ?)",
+                            (username, password, name, surname))
+                # Insert the new user into the Traveler table
+                cur.execute("INSERT INTO Traveler (trusername) VALUES (?)", (username,))
+                con.commit()
+                sg.popup('Sign up successful! You can now log in.', font=('Helvetica', 14))
+                window.close()
+                show_login_page()
+                break
+            except Exception as e:
+                sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
+            finally:
+                con.close()
+
+    window.close()
 
 
+if __name__ == "__main__":
+    show_login_page()
 
 
     
