@@ -230,7 +230,13 @@ def show_add_hotel(username, tid, stdate, edate):
                     selected_start_date_obj = datetime.strptime(selected_start_date, '%Y-%m-%d')
                     selected_end_date_obj = datetime.strptime(selected_end_date, '%Y-%m-%d')
                     if selected_start_date_obj <= selected_end_date_obj:
-                        filtered_options = filter_hotels(hotel_options, values["city_filter"], values["brand_filter"], selected_start_date, selected_end_date)
+                        filtered_options = filter_hotels(
+                            hotel_options, 
+                            values["city_filter"], 
+                            values["brand_filter"], 
+                            selected_start_date, 
+                            selected_end_date
+                        )
                         window["hotel_options"].update(filtered_options)
                     else:
                         sg.popup("End date cannot be earlier than start date.", font=('Helvetica', 14))
@@ -247,7 +253,10 @@ def show_add_hotel(username, tid, stdate, edate):
                 continue
             
             if selected_start_date not in available_dates or selected_end_date not in available_dates:
-                sg.popup(f"Selected dates must be within the available dates range: {', '.join(available_dates)}", font=('Helvetica', 14))
+                sg.popup(
+                    f"Selected dates must be within the available dates range: {', '.join(available_dates)}",
+                    font=('Helvetica', 14)
+                )
                 continue
             
             if selected_end_date < selected_start_date:
@@ -260,31 +269,39 @@ def show_add_hotel(username, tid, stdate, edate):
             
             try:
                 h_hid = h_hotel[0][0]
-                h_city = h_hotel[0][1]
-                h_brand = h_hotel[0][2]
 
                 con = sqlite3.connect('Project.db')
                 cur = con.cursor()
-                # Check for existing assignments for the selected dates
-                cur.execute("SELECT COUNT(*) FROM reservation WHERE hid = ? AND sdate <= ? AND edate >= ?", (h_hid, selected_end_date, selected_start_date))
+
+                # 1) Check if any hotel is already assigned for any overlapping day in this date range for the same tour
+                cur.execute(
+                    "SELECT COUNT(*) FROM reservation "
+                    "WHERE tid = ? AND sdate <= ? AND edate >= ?",
+                    (tid, selected_end_date, selected_start_date)
+                )
                 if cur.fetchone()[0] > 0:
-                    sg.popup("Hotel already assigned for the selected dates.", font=('Helvetica', 14))
+                    sg.popup(
+                        "Hotel is already assigned for this day.",
+                        font=('Helvetica', 14)
+                    )
                     continue
                 
-                # Insert the new assignment
-                cur.execute("INSERT INTO reservation (tid, hid, sdate, edate) VALUES (?, ?, ?, ?)",
-                            (tid, h_hid, selected_start_date, selected_end_date))
+                # 2) Insert the new assignment
+                cur.execute(
+                    "INSERT INTO reservation (tid, hid, sdate, edate) VALUES (?, ?, ?, ?)",
+                    (tid, h_hid, selected_start_date, selected_end_date)
+                )
                 con.commit()
                 sg.popup('Hotel assigned successfully', font=('Helvetica', 14))
 
-                # Check if all dates have hotel assigned
+                # 3) Check if all dates have hotel assigned
                 cur.execute("SELECT sdate, edate FROM reservation WHERE tid = ?", (tid,))
                 assigned_dates = cur.fetchall()
                 assigned_dates_set = set()
                 for sdate, edate in assigned_dates:
                     current_date = datetime.strptime(sdate, '%Y-%m-%d')
-                    end_date = datetime.strptime(edate, '%Y-%m-%d')
-                    while current_date <= end_date:
+                    end_date_dt = datetime.strptime(edate, '%Y-%m-%d')
+                    while current_date <= end_date_dt:
                         assigned_dates_set.add(current_date.strftime('%Y-%m-%d'))
                         current_date += timedelta(days=1)
 
@@ -292,9 +309,11 @@ def show_add_hotel(username, tid, stdate, edate):
                 if not unassigned_dates:
                     sg.popup("All dates have hotel assigned.", font=('Helvetica', 14))
                 else:
-                    unassigned_dates_list = list(unassigned_dates)
-                    unassigned_dates_list.sort()
-                    sg.popup(f"Some dates are still unassigned: {', '.join(unassigned_dates_list)}", font=('Helvetica', 14))
+                    unassigned_dates_list = sorted(unassigned_dates)
+                    sg.popup(
+                        f"Some dates are still unassigned: {', '.join(unassigned_dates_list)}",
+                        font=('Helvetica', 14)
+                    )
                     available_dates = unassigned_dates_list
                     assigned_hotels = {date: None for date in available_dates}
                     window["stdate"].update("")
@@ -840,34 +859,14 @@ def show_tourguide_page(username):
     cur = con.cursor()
     
     # Fetch the tour guide's name
-    cur.execute("SELECT name, surname FROM User u JOIN Has h ON u.username = h.tgusername WHERE u.username = ?", (username,))
+    cur.execute("SELECT name, surname FROM User WHERE username = ?", (username,))
     guide = cur.fetchone()
     guide_name = f"{guide[0]} {guide[1]}" if guide else "Unknown Guide"
-
-    # Fetch the assigned tours for the tour guide
-    cur.execute("SELECT tid FROM Has WHERE tgusername = ?", (username,))
-    assigned_tours = cur.fetchall()
-
-    tours = []
-    for tid_tuple in assigned_tours:
-        tid = tid_tuple[0]
-        cur.execute("SELECT tid, tname, stdate, endate, maxcap, itinerary, price FROM Tour WHERE tid = ?", (tid,))
-        tour = cur.fetchone()
-        if tour:
-            tours.append(tour)
 
     layout = [
         [sg.Text('Tour Guide Page', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
         [sg.Text(f"Welcome, {guide_name}!", font=('Helvetica', 16), background_color='navyblue', text_color='white')],
-        [sg.Text("Your Scheduled Tours:", font=('Helvetica', 16))],
-        [sg.Table(
-            values=tours,
-            headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Max Capacity", "Itinerary", "Price"],
-            justification='center',
-            auto_size_columns=False,
-            num_rows=min(len(tours), 10),
-            font=('Helvetica', 14)
-        )],
+        [sg.Button('My Tours', button_color=('white', 'navyblue'))],
         [sg.Button('Log Out', button_color=('white', 'navyblue'))]
     ]
 
@@ -877,11 +876,100 @@ def show_tourguide_page(username):
     # Event loop to process events and get values of inputs
     while True:
         event, values = window.read()
-        if event == sg.WIN_CLOSED or event == 'Log Out':
+        if event == sg.WINDOW_CLOSED or event == 'Log Out':
             break
-    
+        if event == 'My Tours':
+            window.close()
+            show_tourguides_tours_page(username)
+            break
+
     window.close()
 
+
+def show_tourguides_tours_page(username):
+    
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+
+
+    # Retrieve the list of assigned tour TIDs
+    cur.execute("SELECT tid FROM Has WHERE tgusername = ?", (username,))
+    assigned_tours = cur.fetchall()
+    print(f"Assigned tours: {assigned_tours}")  # Debug print
+
+    # Prepare data for an SG.Table
+    table_data = []
+
+    # For each assigned tour, fetch the tour name and customers
+    for row in assigned_tours:
+        assigned_tid = row[0]
+        # Fetch the tour name
+        cur.execute("SELECT tname FROM Tour WHERE tid = ?", (assigned_tid,))
+        tour_row = cur.fetchone()
+        print(f"Tour info for tid {assigned_tid}: {tour_row}")  # Debug print
+
+        if not tour_row:
+            continue
+        tour_name = tour_row[0]
+
+        # Fetch usernames of booked customers
+        cur.execute("SELECT trusername FROM Purchase WHERE tid = ?", (assigned_tid,))
+        booked_customers = cur.fetchall()
+        print(f"Processing tour {assigned_tid} - {tour_name}")
+        print(f"Found booked customers: {booked_customers}")
+
+        if booked_customers:  # Only proceed if there are customers
+            for cust_row in booked_customers:
+                traveler_username = cust_row[0]
+                
+                # Get customer name from User table first
+                cur.execute("""
+                    SELECT name, surname 
+                    FROM User 
+                    WHERE username = ?""", (traveler_username,))
+                user_data = cur.fetchone()
+                
+                if user_data:
+                    # Then get contact info from Traveler table
+                    cur.execute("""
+                        SELECT tr_contact_no 
+                        FROM Traveler 
+                        WHERE trusername = ?""", (traveler_username,))
+                    traveler_data = cur.fetchone()
+                    
+                    if traveler_data:
+                        full_name = f"{user_data[0]} {user_data[1]}"
+                        phone_number = traveler_data[0]
+                        table_data.append([tour_name, full_name, phone_number])
+                        print(f"Added customer: {full_name} for tour: {tour_name}")
+                    else:
+                        print(f"No traveler data found for username: {traveler_username}")
+
+    con.close()
+
+    # Debugging: Print the table data to the console
+    print("Table Data:", table_data)
+
+    # Define PySimpleGUI layout
+    headings = ["Tour Name", "Customer Name", "Contact Number"]
+    layout = [
+        [sg.Text("My Tours", font=('Helvetica', 24), background_color='navyblue', text_color='white', justification='center')],
+        [sg.Table(values=table_data, headings=headings, key="my_tours_table", auto_size_columns=True, justification='left')],
+        [sg.Button("Back"), sg.Button("Log Out")]
+    ]
+
+    window = sg.Window("My Tours Page", layout, background_color="navyblue", size=(800, 600))
+    while True:
+        event, values = window.read()
+        if event in (sg.WINDOW_CLOSED, "Log Out"):
+            break
+        if event == "Back":
+            window.close()
+            show_tourguide_page(username)
+            return
+    window.close()
+    
+    
 # Example login function to call show_tourguide_page
 def login(username, password):
     con = sqlite3.connect('Project.db')
@@ -1006,6 +1094,8 @@ def show_profile_page(username):
                                 (card_number, bank, cvv, expiration_date, username))
                 con.commit()
                 sg.popup('Profile information updated successfully!', font=('Helvetica', 14))
+                window.close()
+                show_traveler_page(username)
             except Exception as e:
                 sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
             finally:
@@ -1044,7 +1134,8 @@ def show_tour_search_page(username):
         [sg.Button('Back', button_color=('white', 'navyblue'))]
     ]
 
-    window = sg.Window('Tour Search Page', layout, background_color='navyblue', size=(800, 600))
+    scrollable_layout = [[sg.Column(layout, scrollable=True, vertical_scroll_only=True, size=(780, 580))]]
+    window = sg.Window('Tour Search Page', scrollable_layout, background_color='navyblue', size=(800, 600))
     
     selected_tour_id = None
    
@@ -1319,8 +1410,6 @@ def show_my_tours_page(username):
     window.close()
 
                 
-
-
 
 #LOGIN PAGES
 
