@@ -1342,7 +1342,8 @@ def show_my_tours_page(username):
             font=('Helvetica', 14)
         )],
         [sg.Multiline(size=(60, 10), key='tour_details', disabled=True, background_color='white', text_color='black')],
-        [sg.Button('Back', button_color=('white', 'navyblue'))]
+        [sg.Button('Back', button_color=('white', 'navyblue'))],
+        [sg.Button('Add review and rating', button_color=('white', 'navyblue'))]
     ]
 
     window = sg.Window('My Tours', layout, background_color='navyblue', size=(800, 600))
@@ -1353,6 +1354,8 @@ def show_my_tours_page(username):
             window.close()
             show_traveler_page(username)
             break
+
+
 
         if event == 'purchased_tours_table':
             selected_tour_index = values['purchased_tours_table'][0]
@@ -1406,8 +1409,166 @@ def show_my_tours_page(username):
                     window['tour_details'].update(details)
             except Exception as e:
                 sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
+        if event == 'Add review and rating' and tour_id:
+            if tour_id is not None:
+                window.close()
+                show_add_review_page(username, tour_id)
+                break
+            else:
+                sg.popup('Please select a tour before adding a review.', font=('Helvetica', 14))
+
 
     window.close()
+
+def show_add_review_page(username, tour_id):
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+    layout = [
+        [sg.Text('Write a Review', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        [sg.Text('Rating (1-5):', background_color='navyblue', text_color='white'), sg.InputText(key='rating')],
+        [sg.Text('Review:', background_color='navyblue', text_color='white'), sg.InputText(key='review_text')],
+        [sg.Button('Submit'), sg.Button('Cancel')]
+    ]
+
+    window = sg.Window('Add Review', layout, background_color='navyblue')
+
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Cancel':
+            window.close()
+            show_my_tours_page(username)
+            break
+        if event == 'Submit':
+            rating = values['rating'].strip()  # Trim leading/trailing spaces
+            review_text = values['review_text']
+
+            # Enhanced rating validation
+            try:
+                # Convert the rating to an integer and check if it's within the valid range (1-5)
+                rating_int = int(rating)  
+                if rating_int < 1 or rating_int > 5:
+                    raise ValueError("Rating must be between 1 and 5.")  # Custom error if outside range
+            except ValueError as e:
+                sg.popup(f'Invalid rating: {e}', font=('Helvetica', 14))
+                continue  # Go back to the form and wait for valid input
+
+            # Try to insert the review into the database after rating validation
+            try:
+                # Assuming 'rid' is not auto-increment and needs to be manually inserted
+                cur.execute("SELECT MAX(rid) FROM Review")
+                max_rid = cur.fetchone()[0]  # Get the current maximum 'rid'
+                new_rid = max_rid + 1 if max_rid is not None else 1  # Increment the 'rid' (or start from 1 if empty)
+
+                # Insert the review with the manually calculated 'rid'
+                cur.execute("INSERT INTO Review (rid, text, date, rating, ReviewTourid, ReviewTrUsername) VALUES (?, ?, date('now'), ?, ?, ?)",
+                            (new_rid, review_text, rating_int, tour_id, username))
+                con.commit()  # Commit the transaction
+
+                # Show success message
+                sg.popup('Review submitted successfully!', font=('Helvetica', 14))  
+
+                # Update the layout to show additional buttons (Back and Tour Reviews)
+                layout = [
+                    [sg.Text('Review Submitted', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+                    [sg.Button('Back'), sg.Button('Tour Reviews')]
+                ]
+                
+                # Update the existing window with the new layout (recreate the window)
+                window.close()
+                window = sg.Window('Add Review', layout, background_color='navyblue')
+
+            except Exception as e:
+                # Log the exception to understand what went wrong
+                sg.popup(f"Error occurred while submitting the review: {e}", font=('Helvetica', 14))
+
+        # Handle additional button events
+        if event == 'Back':
+            window.close()
+            show_my_tours_page(username)
+            break
+        elif event == 'Tour Reviews':
+            window.close()
+            show_tour_reviews_page(tour_id)  # Go to the tour reviews page
+            break
+
+    window.close()  # Close the window when done
+
+
+
+
+def show_tour_reviews_page(username):
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+
+    # Fetch all tours with their average ratings
+    cur.execute("""
+        SELECT T.tid, T.tname, 
+               IFNULL(AVG(R.rating), 0) AS avg_rating
+        FROM Tour T
+        LEFT JOIN Review R ON T.tid = R.ReviewTourid
+        GROUP BY T.tid, T.tname
+    """)
+    tours = cur.fetchall()  # List of tours with their average ratings
+    con.close()
+
+    # Prepare the layout
+    layout = [
+        [sg.Text('Tour Reviews', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        [sg.Listbox(values=[f"{tour[1]} (ID: {tour[0]}, Avg Rating: {tour[2]:.1f})" for tour in tours],
+                    size=(50, 10), key='selected_tour')],
+        [sg.Button('View Reviews', button_color=('white', 'navyblue'))],
+        [sg.Button('Back', button_color=('white', 'navyblue'))]
+    ]
+
+    window = sg.Window('Tour Reviews', layout, background_color='navyblue')
+
+    while True:
+        event, values = window.read()
+        if event == sg.WIN_CLOSED or event == 'Back':
+            window.close()
+            show_traveler_page(username)  # Navigate back to the traveler page
+            break
+
+        if event == 'View Reviews':
+            selected_tour = values['selected_tour']
+            if not selected_tour:
+                sg.popup('Please select a tour to view reviews.', font=('Helvetica', 14))
+                continue
+
+            # Extract the selected tour ID
+            tour_id = int(selected_tour[0].split('(ID: ')[1].split(',')[0])
+
+            try:
+                # Fetch all reviews for the selected tour
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+                cur.execute("""
+                    SELECT R.text, R.rating, R.ReviewTrUsername
+                    FROM Review R
+                    WHERE R.ReviewTourid = ?
+                """, (tour_id,))
+                reviews = cur.fetchall()
+                con.close()
+
+                if reviews:
+                    # Format reviews to display in a popup
+                    reviews_text = "\n\n".join([f"{r[2]}: {r[1]}/5 - {r[0]}" for r in reviews])
+                    sg.popup_scrolled(reviews_text, title=f"Reviews for Tour ID {tour_id}", font=('Helvetica', 14))
+                else:
+                    sg.popup('No reviews available for this tour.', font=('Helvetica', 14))
+            except Exception as e:
+                sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
+                if con:
+                    con.close()
+
+    window.close()  # Close the window when done
+
+
+
+
+
+
+
 
                 
 
