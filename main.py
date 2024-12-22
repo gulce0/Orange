@@ -996,19 +996,16 @@ def login(username, password):
 
 
 def show_traveler_page(username):
-    # Define the layout of the traveler window
     layout = [
         [sg.Text('Orange Travel Agency', font=('Helvetica', 16), background_color='navyblue', text_color='orange')],
         [sg.Button('Profile', button_color=('white', 'navyblue'), size=(16, 1))],
         [sg.Button('My Tours', button_color=('white', 'navyblue'), size=(16, 1))],
         [sg.Button('Tour Search', button_color=('white', 'navyblue'), size=(16, 1))],
+        [sg.Button('Pay for First Tour', button_color=('white', 'navyblue'), size=(16, 1))],
         [sg.Button('Exit', button_color=('white', 'navyblue'), size=(16, 1))]
     ]
-    
-    # Create the traveler window with a larger size
     window = sg.Window('Traveler Page', layout, background_color='navyblue', size=(200, 200))
-    
-    # Event loop to process events and get values of inputs
+
     while True:
         event, values = window.read()
         if event == sg.WIN_CLOSED or event == 'Exit':
@@ -1025,8 +1022,9 @@ def show_traveler_page(username):
             window.close()
             show_my_tours_page(username)
             break
-    
-    
+        if event == 'Pay for First Tour':
+            handle_customer_payment_workflow(username)
+            break
     window.close()
 
 
@@ -1565,6 +1563,62 @@ def show_tour_reviews_page(username):
 
 
 
+def display_customer_tours(username):
+    """Display all tours for the customer excluding invalid or non-booked ones."""
+    try:
+        con = sqlite3.connect('Project.db')
+        cur = con.cursor()
+        cur.execute("""
+            SELECT t.tid, t.tname, t.stdate, t.endate, t.price 
+            FROM Tour t
+            JOIN Purchase p ON t.tid = p.tid
+            WHERE p.trusername = ?
+        """, (username,))
+        tours = cur.fetchall()
+        con.close()
+
+        if tours:
+            tour_list = "\n".join([f"Tour ID: {t[0]}, Name: {t[1]}, Start: {t[2]}, End: {t[3]}, Price: {t[4]}" for t in tours])
+            sg.popup_scrolled(f"Your Tours:\n\n{tour_list}", title="My Tours", font=('Helvetica', 14))
+        else:
+            sg.popup("You currently have no tours booked.", font=('Helvetica', 14))
+    except Exception as e:
+        sg.popup(f"Error: {e}", font=('Helvetica', 14))
+
+def pay_for_first_tour(username):
+    """Pay for the first tour the customer booked and return to the customer page."""
+    try:
+        con = sqlite3.connect('Project.db')
+        cur = con.cursor()
+        cur.execute("""
+            SELECT t.tid, t.tname, t.price 
+            FROM Tour t
+            JOIN Purchase p ON t.tid = p.tid
+            WHERE p.trusername = ?
+            LIMIT 1
+        """, (username,))
+        tour = cur.fetchone()
+        con.close()
+
+        if tour:
+            tour_id, tour_name, price = tour
+            sg.popup(f"Payment successful for Tour ID: {tour_id} ({tour_name}). Total: {price:.2f}", font=('Helvetica', 14))
+        else:
+            sg.popup("No eligible tours found to pay for.", font=('Helvetica', 14))
+    except Exception as e:
+        sg.popup(f"Error: {e}", font=('Helvetica', 14))
+    finally:
+        # Return to the customer page
+        show_traveler_page(username)
+
+
+def handle_customer_payment_workflow(username):
+    """Handle the workflow for displaying and paying for a customer's first tour."""
+    # Step 1: Display all tours for the customer
+    display_customer_tours(username)
+
+    # Step 2: Pay for the first tour the customer tried to book
+    pay_for_first_tour(username)
 
 
 
@@ -1686,8 +1740,6 @@ def show_signup_page():
 
 if __name__ == "__main__":
     show_login_page()
-
-
 
 
     
