@@ -669,31 +669,33 @@ def show_admin_page(username):
     tours = cur.fetchall()
     con.close()
 
+    # Admin dashboard layout
     layout = [
-        [sg.Text("Admin Dashboard", font=('Helvetica', 24), justification='center', background_color='navyblue', text_color='white', pad=(0, 20))],
+        [sg.Text("Admin Dashboard", font=('Helvetica', 24), justification='center', background_color='navyblue', text_color='white', pad=(0, 20), size=(30, 1))],
         [sg.Table(
             values=tours, 
             headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Max Capacity", "Itinerary", "Price", "Tourguides"], 
-            col_widths=[10, 20, 15, 15, 15, 30, 10, 30],  # Adjust the column widths as needed
+            col_widths=[10, 20, 15, 15, 15, 30, 10, 30], 
             justification='center',
             key='tour_table',
             enable_events=True,
             select_mode=sg.TABLE_SELECT_MODE_BROWSE,
             auto_size_columns=False,
             display_row_numbers=False,
-            num_rows=min(25, len(tours)),
-            vertical_scroll_only=False
+            num_rows=min(20, len(tours)),
+            vertical_scroll_only=False,
+            size=(None, 300)
         )],
-        [sg.Column([
-            [sg.Button('Create New Tour', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
-             sg.Button('Show Transportations', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
-             sg.Button('Show Hotels', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
-             sg.Button('Insert Tourguide', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
-             sg.Button('Logout', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10))]
-        ], justification='center', element_justification='center')]
+        [sg.Button('Create New Tour', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
+         sg.Button('Show Transportations', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
+         sg.Button('Show Hotels', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10))],
+        [sg.Button('Insert Tourguide', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
+         sg.Button('Show Top Tours', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
+         sg.Button('Logout', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10))]
     ]
 
-    window = sg.Window('Admin Page', layout, background_color='navyblue', size=(800, 600), element_justification='center')
+    # Create the admin window
+    window = sg.Window('Admin Page', layout, background_color='navyblue', element_justification='center', size=(1000, 700))
 
     while True:
         event, values = window.read()
@@ -713,7 +715,6 @@ def show_admin_page(username):
                 show_assigned_transportation_list(username, tid, stdate, edate)
             else:
                 sg.popup("Please select a tour", font=('Helvetica', 14))
-            
         if event == 'Show Hotels':
             selected_row = values['tour_table']
             if selected_row:
@@ -724,7 +725,6 @@ def show_admin_page(username):
                 show_assigned_hotel_list(username, tid, stdate, edate)
             else:
                 sg.popup("Please select a tour", font=('Helvetica', 14))
-            
         if event == 'Insert Tourguide':
             selected_row = values['tour_table']
             if selected_row:
@@ -735,12 +735,160 @@ def show_admin_page(username):
                 show_tourguide_selection_page(username, tid, stdate, edate)
             else:
                 sg.popup("Please select a tour", font=('Helvetica', 14))
-            
+        if event == 'Show Top Tours':
+            window.close()
+            show_top_tours_and_update_guide_salaries(username)
+            break
+
     window.close()
 
+#ezgi
+
+def show_top_tours_and_update_guide_salaries(username):
+    con = sqlite3.connect('Project.db')
+    cur = con.cursor()
+
+    try:
+        # Get the current date for filtering tours
+        cur.execute("SELECT date('now', '-3 months')")
+        three_months_ago = cur.fetchone()[0]
+
+        # Query tours in the last three months, sorted by rating
+        cur.execute("""
+        SELECT t.tid, t.tname, AVG(r.rating) AS avg_rating
+        FROM Tour t
+        LEFT JOIN Review r ON t.tid = r.ReviewTourid
+        WHERE t.stdate >= ?
+        GROUP BY t.tid, t.tname
+        ORDER BY avg_rating DESC
+        """, (three_months_ago,))
+        tours = cur.fetchall()
+
+        # Prepare the data for the table
+        table_data = [[tour[0], tour[1], f"{tour[2]:.2f}" if tour[2] is not None else "No ratings"] for tour in tours]
+
+        # Define the layout for the tour table
+        layout = [
+            [sg.Text("Top Tours in the Last Three Months", font=("Helvetica", 16), justification="center")],
+            [sg.Table(
+                values=table_data,
+                headings=["Tour ID", "Tour Name", "Average Rating"],
+                col_widths=[10, 30, 15],
+                justification="center",
+                key="tours_table",
+                auto_size_columns=False,
+                display_row_numbers=False,
+                num_rows=10
+            )],
+            [sg.Button("Show Guides and Update Salaries", button_color=("white", "navyblue")),
+             sg.Button("Back to Admin Page", button_color=("white", "navyblue"))]
+        ]
+
+        # Create the window
+        window = sg.Window("Top Tours", layout, modal=True)
+
+        while True:
+            event, values = window.read()
+
+            if event in (sg.WINDOW_CLOSED, "Back to Admin Page"):
+                window.close()
+                show_admin_page(username)
+                break
+
+            if event == "Show Guides and Update Salaries":
+                top_tours = tours[:5]
+                guide_data = []
+
+                # Fetch the tour guides of the top 5 tours
+                for tour in top_tours:
+                    tour_id = tour[0]
+                    cur.execute("""
+                    SELECT DISTINCT u.username, u.name || ' ' || u.surname AS guide_name, g.salaries
+                    FROM Has h
+                    JOIN User u ON h.tgusername = u.username
+                    JOIN Tourguide g ON u.username = g.tgusername
+                    WHERE h.tid = ?
+                    """, (tour_id,))
+                    guides = cur.fetchall()
+                    guide_data.extend(guides)
+
+                # Show the guides and their current salaries
+                guide_table_data = [[g[0], g[1], g[2]] for g in guide_data]
+                guide_layout = [
+                    [sg.Text("Tour Guides for Top 5 Tours", font=("Helvetica", 16), justification="center")],
+                    [sg.Table(
+                        values=guide_table_data,
+                        headings=["Username", "Name", "Current Salary"],
+                        col_widths=[15, 30, 15],
+                        justification="center",
+                        key="guides_table",
+                        auto_size_columns=False,
+                        display_row_numbers=False,
+                        num_rows=10
+                    )],
+                    [sg.Text("Enter Salary Increment Details:", font=("Helvetica", 14))],
+                    [sg.Text("Username:", size=(10, 1)), sg.Input(key="guide_username", size=(20, 1))],
+                    [sg.Text("Amount:", size=(10, 1)), sg.Input(key="increment_amount", size=(10, 1))],
+                    [sg.Button("Update Salary"), sg.Button("Back", button_color=("white", "navyblue"))]
+                ]
+
+                window.close()
+                guide_window = sg.Window("Tour Guides", guide_layout, modal=True)
+
+                while True:
+                    guide_event, guide_values = guide_window.read()
+
+                    if guide_event in (sg.WINDOW_CLOSED, "Back"):
+                        guide_window.close()
+                        show_top_tours_and_update_guide_salaries(username)
+                        return
+
+                    if guide_event == "Update Salary":
+                        # Get input values
+                        guide_username = guide_values["guide_username"]
+                        increment_amount = guide_values["increment_amount"]
+
+                        if guide_username and increment_amount:
+                            try:
+                                increment_amount = float(increment_amount)
+                                cur.execute("""
+                                UPDATE Tourguide
+                                SET salaries = salaries + ?
+                                WHERE tgusername = ?
+                                """, (increment_amount, guide_username))
+                                con.commit()
+
+                                # Refresh the table with updated salaries
+                                cur.execute("""
+                                SELECT DISTINCT u.username, u.name || ' ' || u.surname AS guide_name, g.salaries
+                                FROM Has h
+                                JOIN User u ON h.tgusername = u.username
+                                JOIN Tourguide g ON u.username = g.tgusername
+                                WHERE u.username = ?
+                                """, (guide_username,))
+                                updated_data = cur.fetchall()
+                                if updated_data:
+                                    updated_salary = updated_data[0][2]
+                                    sg.popup(f"Salary updated successfully for {guide_username}. New Salary: {updated_salary:.2f}", font=("Helvetica", 14))
+
+                                    # Refresh the displayed guide data
+                                    guide_table_data = [[g[0], g[1], g[2]] for g in guide_data]
+                                    guide_window["guides_table"].update(values=guide_table_data)
+
+                            except ValueError:
+                                sg.popup("Please enter a valid amount.", font=("Helvetica", 14))
+                            except Exception as e:
+                                sg.popup(f"An error occurred: {e}", font=("Helvetica", 14))
+                        else:
+                            sg.popup("Please fill both fields (Username and Increment Amount).", font=("Helvetica", 14))
+
+    except Exception as e:
+        sg.popup(f"An error occurred: {e}", font=("Helvetica", 14))
+    finally:
+        con.close()
 
 
-
+#ezgi
 
 def filter_tourguides(selected_start_date, selected_end_date):
     con = sqlite3.connect('Project.db')
@@ -847,8 +995,46 @@ def show_tourguide_selection_page(username, tid, stdate, edate):
                 break
             else:
                 sg.popup("No tour guides selected! Please select.", font=('Helvetica', 14))
+            if not chosen_tourguides:
+                sg.popup("No touguides selected! Please select.")
+                continue
+   #window.close()
 
-    window.close()
+#display all tours page işlevsiz gibi 
+
+def display_all_tours_page(username,password):
+
+    con =sqlite3.connect('Project.db')
+    cur =con.cursor()
+
+    query = """SELECT t.tid,t.tname,t.stdate,t.endate,t.maxcap,t.itinerary,t.price,(SELECT GROUP_CONCAT(u.name || ' ' || u.surname, ', ' FROM Has h, User u WHERE h.tgusername = u.username AND h.tid=t.tid) AS tourguides FROM Tout t"""
+
+    cur.execute(query)
+    tours = cur.fetchall()
+    con.close
+
+    layout = [
+        [sg.Text("All Tours in the System", font=('Helvetica', 16))],
+        [sg.Table(values=tours, headings=["Tour ID", "Tour Name", "Starting Date" , "Ending Date", "Maximum Capacity", "Itinerary", "Price", "Tourguides"], col_widths=[10,20,15,15,20,30,10,50], justification = 'center', auto_size_columns= False, num_rows=min(len(tours),20))],
+        [sg.Button("Log Out")],
+        [sg.Button("Back")]
+    ]
+
+    window =sg.Window('All Tours', layout, background_color = 'navyblue')
+
+    while True:
+        event, values = window.read()
+        if event == sg.WINDOW_CLOSED or event == 'Log Out':
+            window.close()
+            login(username, password)
+            break
+
+        if event == "Back":
+
+            window.close()
+            show_admin_page()
+            break
+    window.close
 
 
 
@@ -863,10 +1049,16 @@ def show_tourguide_page(username):
     guide = cur.fetchone()
     guide_name = f"{guide[0]} {guide[1]}" if guide else "Unknown Guide"
 
+    cur.execute("SELECT salaries FROM Tourguide WHERE tgusername = ?", (username,))
+    salary_row = cur.fetchone()
+    increased_salary = salary_row[0] if salary_row else "Salary Not Available"
+
     layout = [
         [sg.Text('Tour Guide Page', font=('Helvetica', 16), background_color='navyblue', text_color='white')],
         [sg.Text(f"Welcome, {guide_name}!", font=('Helvetica', 16), background_color='navyblue', text_color='white')],
+        #[sg.Text(f"Your Increased Salary: {increased_salary}", font=('Helvetica', 14), background_color='navyblue', text_color='white')],
         [sg.Button('My Tours', button_color=('white', 'navyblue'))],
+        [sg.Button('Check Salary', button_color=('white', 'navyblue'))],
         [sg.Button('Log Out', button_color=('white', 'navyblue'))]
     ]
 
@@ -882,73 +1074,49 @@ def show_tourguide_page(username):
             window.close()
             show_tourguides_tours_page(username)
             break
+        if event == 'Check Salary':
+            sg.popup(f"Your Salary: {increased_salary}", font=('Helvetica', 14))
 
     window.close()
 
 
 def show_tourguides_tours_page(username):
-    
     con = sqlite3.connect('Project.db')
     cur = con.cursor()
 
+    # Fetch all tours assigned to the tour guide
+    query = """
+    SELECT 
+        Tour.tname AS tour_name, 
+        User.name || ' ' || User.surname AS customer_name,
+        Traveler.tr_contact_no AS contact_number
+    FROM 
+        Has
+    LEFT JOIN 
+        Tour ON Has.tid = Tour.tid
+    LEFT JOIN 
+        Purchase ON Tour.tid = Purchase.tid
+    LEFT JOIN 
+        User ON Purchase.trusername = User.username
+    LEFT JOIN 
+        Traveler ON Purchase.trusername = Traveler.trusername
+    WHERE 
+        Has.tgusername = ?
+    ORDER BY 
+        Tour.tname;
+    """
+    cur.execute(query, (username,))
+    results = cur.fetchall()
 
-    # Retrieve the list of assigned tour TIDs
-    cur.execute("SELECT tid FROM Has WHERE tgusername = ?", (username,))
-    assigned_tours = cur.fetchall()
-    print(f"Assigned tours: {assigned_tours}")  # Debug print
-
-    # Prepare data for an SG.Table
+    # Prepare data for the table
     table_data = []
-
-    # For each assigned tour, fetch the tour name and customers
-    for row in assigned_tours:
-        assigned_tid = row[0]
-        # Fetch the tour name
-        cur.execute("SELECT tname FROM Tour WHERE tid = ?", (assigned_tid,))
-        tour_row = cur.fetchone()
-        print(f"Tour info for tid {assigned_tid}: {tour_row}")  # Debug print
-
-        if not tour_row:
-            continue
-        tour_name = tour_row[0]
-
-        # Fetch usernames of booked customers
-        cur.execute("SELECT trusername FROM Purchase WHERE tid = ?", (assigned_tid,))
-        booked_customers = cur.fetchall()
-        print(f"Processing tour {assigned_tid} - {tour_name}")
-        print(f"Found booked customers: {booked_customers}")
-
-        if booked_customers:  # Only proceed if there are customers
-            for cust_row in booked_customers:
-                traveler_username = cust_row[0]
-                
-                # Get customer name from User table first
-                cur.execute("""
-                    SELECT name, surname 
-                    FROM User 
-                    WHERE username = ?""", (traveler_username,))
-                user_data = cur.fetchone()
-                
-                if user_data:
-                    # Then get contact info from Traveler table
-                    cur.execute("""
-                        SELECT tr_contact_no 
-                        FROM Traveler 
-                        WHERE trusername = ?""", (traveler_username,))
-                    traveler_data = cur.fetchone()
-                    
-                    if traveler_data:
-                        full_name = f"{user_data[0]} {user_data[1]}"
-                        phone_number = traveler_data[0]
-                        table_data.append([tour_name, full_name, phone_number])
-                        print(f"Added customer: {full_name} for tour: {tour_name}")
-                    else:
-                        print(f"No traveler data found for username: {traveler_username}")
+    for row in results:
+        tour_name = row[0]
+        customer_name = row[1] if row[1] else "No customers"
+        contact_number = row[2] if row[2] else "N/A"
+        table_data.append([tour_name, customer_name, contact_number])
 
     con.close()
-
-    # Debugging: Print the table data to the console
-    print("Table Data:", table_data)
 
     # Define PySimpleGUI layout
     headings = ["Tour Name", "Customer Name", "Contact Number"]
@@ -968,6 +1136,8 @@ def show_tourguides_tours_page(username):
             show_tourguide_page(username)
             return
     window.close()
+
+
     
     
 # Example login function to call show_tourguide_page
@@ -1222,12 +1392,30 @@ def show_tour_search_page(username):
 
         if event == 'Purchase':
             if selected_tour_id:
-                window.close()
-                show_payment_page(username, selected_tour_id)
-                break
+                try:
+                    con = sqlite3.connect('Project.db')
+                    cur = con.cursor()
+            
+            # Fetch capacity details
+                    cur.execute("SELECT maxcap FROM Tour WHERE tid = ?", (selected_tour_id,))
+                    maxcap = cur.fetchone()[0]
+            
+                    cur.execute("SELECT COUNT(*) FROM Purchase WHERE tid = ?", (selected_tour_id,))
+                    purchased_count = cur.fetchone()[0]
+            
+                    current_capacity = maxcap - purchased_count
+                    con.close()
+
+                    if current_capacity <= 0:
+                        sg.popup('This tour is fully booked. You cannot purchase it.', font=('Helvetica', 14))
+                    else:
+                        window.close()
+                        show_payment_page(username, selected_tour_id)
+                        break
+                except Exception as e:
+                    sg.popup(f"Error occurred: {e}", font=('Helvetica', 14))
             else:
                 sg.popup('Please select a tour to purchase.', font=('Helvetica', 14))
-
     window.close()
 
 def show_payment_page(username, tour_id):
