@@ -652,6 +652,7 @@ def show_admin_page(username):
     con = sqlite3.connect('Project.db')
     cur = con.cursor()
 
+    # Fetch tour data including current capacities
     cur.execute("""
     SELECT 
         t.tid, 
@@ -659,6 +660,10 @@ def show_admin_page(username):
         t.stdate, 
         t.endate, 
         t.maxcap, 
+        (t.maxcap - IFNULL(
+            (SELECT COUNT(*) 
+             FROM Purchase p 
+             WHERE p.tid = t.tid), 0)) AS current_capacity, -- Added current capacity calculation
         t.itinerary, 
         t.price,
         (SELECT GROUP_CONCAT(u.name || ' ' || u.surname, ', ') 
@@ -674,8 +679,8 @@ def show_admin_page(username):
         [sg.Text("Admin Dashboard", font=('Helvetica', 24), justification='center', background_color='navyblue', text_color='white', pad=(0, 20), size=(30, 1))],
         [sg.Table(
             values=tours, 
-            headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Max Capacity", "Itinerary", "Price", "Tourguides"], 
-            col_widths=[10, 20, 15, 15, 15, 30, 10, 30], 
+            headings=["Tour ID", "Tour Name", "Starting Date", "Ending Date", "Max Capacity", "Current Capacity", "Itinerary", "Price", "Tourguides"],  # Updated headings
+            col_widths=[10, 20, 15, 15, 15, 15, 30, 10, 30],  # Adjusted column widths for Current Capacity
             justification='center',
             key='tour_table',
             enable_events=True,
@@ -688,7 +693,9 @@ def show_admin_page(username):
         )],
         [sg.Button('Create New Tour', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
          sg.Button('Show Transportations', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
-         sg.Button('Show Hotels', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10))],
+         sg.Button('Show Hotels', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
+         sg.Button('Increase Capacity', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),  # Added button
+         sg.Button('Delete Tour', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10))],  # Added button
         [sg.Button('Insert Tourguide', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
          sg.Button('Show Top Tours', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
          sg.Button('Logout', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10))]
@@ -739,8 +746,48 @@ def show_admin_page(username):
             window.close()
             show_top_tours_and_update_guide_salaries(username)
             break
+        if event == 'Increase Capacity':  # Handle capacity increase
+            selected_row = values['tour_table']
+            if selected_row:
+                tid = tours[selected_row[0]][0]
+                new_capacity = sg.popup_get_text("Enter the new capacity to add:", font=('Helvetica', 14))
+                if new_capacity and new_capacity.isdigit():
+                    con = sqlite3.connect('Project.db')
+                    cur = con.cursor()
+                    cur.execute("UPDATE Tour SET maxcap = maxcap + ? WHERE tid = ?", (int(new_capacity), tid))
+                    con.commit()
+                    con.close()
+                    sg.popup("Capacity increased successfully!", font=('Helvetica', 14))
+                    window.close()
+                    show_admin_page(username)
+                else:
+                    sg.popup("Please enter a valid number for the capacity.", font=('Helvetica', 14))
+            else:
+                sg.popup("Please select a tour", font=('Helvetica', 14))
+        if event == 'Delete Tour':  # Handle tour deletion
+            selected_row = values['tour_table']
+            if selected_row:
+                tid = tours[selected_row[0]][0]
+                con = sqlite3.connect('Project.db')
+                cur = con.cursor()
+                # Check if the tour has customers
+                cur.execute("SELECT COUNT(*) FROM Purchase WHERE tid = ?", (tid,))
+                customer_count = cur.fetchone()[0]
+                if customer_count == 0:
+                    cur.execute("DELETE FROM Tour WHERE tid = ?", (tid,))
+                    con.commit()
+                    sg.popup("Tour deleted successfully!", font=('Helvetica', 14))
+                else:
+                    sg.popup("This tour has customers and cannot be deleted.", font=('Helvetica', 14))
+                con.close()
+                window.close()
+                show_admin_page(username)
+            else:
+                sg.popup("Please select a tour", font=('Helvetica', 14))
 
     window.close()
+
+
 
 #ezgi
 
@@ -1171,7 +1218,7 @@ def show_traveler_page(username):
         [sg.Button('Profile', button_color=('white', 'navyblue'), size=(16, 1))],
         [sg.Button('My Tours', button_color=('white', 'navyblue'), size=(16, 1))],
         [sg.Button('Tour Search', button_color=('white', 'navyblue'), size=(16, 1))],
-        [sg.Button('Pay for First Tour', button_color=('white', 'navyblue'), size=(16, 1))],
+        #[sg.Button('Pay for First Tour', button_color=('white', 'navyblue'), size=(16, 1))],
         [sg.Button('Exit', button_color=('white', 'navyblue'), size=(16, 1))]
     ]
     window = sg.Window('Traveler Page', layout, background_color='navyblue', size=(200, 200))
@@ -1192,9 +1239,9 @@ def show_traveler_page(username):
             window.close()
             show_my_tours_page(username)
             break
-        if event == 'Pay for First Tour':
-            handle_customer_payment_workflow(username)
-            break
+        #if event == 'Pay for First Tour':
+            #handle_customer_payment_workflow(username)
+            #break
     window.close()
 
 
@@ -1773,40 +1820,40 @@ def display_customer_tours(username):
     except Exception as e:
         sg.popup(f"Error: {e}", font=('Helvetica', 14))
 
-def pay_for_first_tour(username):
-    """Pay for the first tour the customer booked and return to the customer page."""
-    try:
-        con = sqlite3.connect('Project.db')
-        cur = con.cursor()
-        cur.execute("""
-            SELECT t.tid, t.tname, t.price 
-            FROM Tour t
-            JOIN Purchase p ON t.tid = p.tid
-            WHERE p.trusername = ?
-            LIMIT 1
-        """, (username,))
-        tour = cur.fetchone()
-        con.close()
+#def pay_for_first_tour(username):
+#    """Pay for the first tour the customer booked and return to the customer page."""
+#    try:
+#        con = sqlite3.connect('Project.db')
+#        cur = con.cursor()
+#        cur.execute("""
+#            SELECT t.tid, t.tname, t.price 
+#            FROM Tour t
+#            JOIN Purchase p ON t.tid = p.tid
+#            WHERE p.trusername = ?
+#            LIMIT 1
+#        """, (username,))
+#        tour = cur.fetchone()
+#        con.close()
+#
+#        if tour:
+#            tour_id, tour_name, price = tour
+#            sg.popup(f"Payment successful for Tour ID: {tour_id} ({tour_name}). Total: {price:.2f}", font=('Helvetica', 14))
+#        else:
+#            sg.popup("No eligible tours found to pay for.", font=('Helvetica', 14))
+#    except Exception as e:
+#        sg.popup(f"Error: {e}", font=('Helvetica', 14))
+#    finally:
+#        # Return to the customer page
+#        show_traveler_page(username)
 
-        if tour:
-            tour_id, tour_name, price = tour
-            sg.popup(f"Payment successful for Tour ID: {tour_id} ({tour_name}). Total: {price:.2f}", font=('Helvetica', 14))
-        else:
-            sg.popup("No eligible tours found to pay for.", font=('Helvetica', 14))
-    except Exception as e:
-        sg.popup(f"Error: {e}", font=('Helvetica', 14))
-    finally:
-        # Return to the customer page
-        show_traveler_page(username)
 
-
-def handle_customer_payment_workflow(username):
-    """Handle the workflow for displaying and paying for a customer's first tour."""
+#def handle_customer_payment_workflow(username):
+#    """Handle the workflow for displaying and paying for a customer's first tour."""
     # Step 1: Display all tours for the customer
-    display_customer_tours(username)
+#    display_customer_tours(username)
 
     # Step 2: Pay for the first tour the customer tried to book
-    pay_for_first_tour(username)
+#    pay_for_first_tour(username)
 
 
 
