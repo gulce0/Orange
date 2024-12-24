@@ -698,7 +698,7 @@ def show_admin_page(username):
          sg.Button('Delete Tour', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10))],  # Added button
         [sg.Button('Insert Tourguide', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
          sg.Button('Show Top Tours', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10)),
-         sg.Button('Logout', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10))]
+         sg.Button('Log out', button_color=('white', 'navyblue'), size=(20, 2), pad=(10, 10))]
     ]
 
     # Create the admin window
@@ -706,8 +706,12 @@ def show_admin_page(username):
 
     while True:
         event, values = window.read()
-        if event in (sg.WINDOW_CLOSED, 'Logout'):
-            break
+        if event == sg.WINDOW_CLOSED:
+            window.close()
+        if event == 'Log out':
+            window.close()
+            show_login_page()
+            return
         if event == 'Create New Tour':
             window.close()
             show_create_tour_form(username)
@@ -1071,11 +1075,13 @@ def display_all_tours_page(username,password):
 
     while True:
         event, values = window.read()
-        if event == sg.WINDOW_CLOSED or event == 'Log Out':
+        if event == sg.WINDOW_CLOSED:
             window.close()
-            login(username, password)
             break
-
+        if event == 'Log out':
+            window.close()
+            show_login_page()
+            return
         if event == "Back":
 
             window.close()
@@ -1106,7 +1112,7 @@ def show_tourguide_page(username):
         #[sg.Text(f"Your Increased Salary: {increased_salary}", font=('Helvetica', 14), background_color='navyblue', text_color='white')],
         [sg.Button('My Tours', button_color=('white', 'navyblue'))],
         [sg.Button('Check Salary', button_color=('white', 'navyblue'))],
-        [sg.Button('Log Out', button_color=('white', 'navyblue'))]
+        [sg.Button('Log out', button_color=('white', 'navyblue'))]
     ]
 
     # Create the tour guide window
@@ -1115,7 +1121,12 @@ def show_tourguide_page(username):
     # Event loop to process events and get values of inputs
     while True:
         event, values = window.read()
-        if event == sg.WINDOW_CLOSED or event == 'Log Out':
+        if event == sg.WINDOW_CLOSED:
+            window.close()
+            break
+        if event == 'Log out':
+            window.close()
+            show_login_page()
             break
         if event == 'My Tours':
             window.close()
@@ -1176,8 +1187,13 @@ def show_tourguides_tours_page(username):
     window = sg.Window("My Tours Page", layout, background_color="navyblue", size=(800, 600))
     while True:
         event, values = window.read()
-        if event in (sg.WINDOW_CLOSED, "Log Out"):
+        if event == (sg.WINDOW_CLOSED):
+            window.close()
             break
+        if event == 'Log out':
+            window.close()
+            show_login_page()
+            return
         if event == "Back":
             window.close()
             show_tourguide_page(username)
@@ -1219,14 +1235,20 @@ def show_traveler_page(username):
         [sg.Button('My Tours', button_color=('white', 'navyblue'), size=(16, 1))],
         [sg.Button('Tour Search', button_color=('white', 'navyblue'), size=(16, 1))],
         #[sg.Button('Pay for First Tour', button_color=('white', 'navyblue'), size=(16, 1))],
-        [sg.Button('Exit', button_color=('white', 'navyblue'), size=(16, 1))]
+        [sg.Button('Exit', button_color=('white', 'navyblue'), size=(16, 1))],
+        [sg.Button('Log out', button_color=('white', 'navyblue'), size=(16, 1))]
+
     ]
-    window = sg.Window('Traveler Page', layout, background_color='navyblue', size=(200, 200))
+    window = sg.Window('Traveler Page', layout, background_color='navyblue', size=(300, 300))
 
     while True:
         event, values = window.read()
         if event == sg.WIN_CLOSED or event == 'Exit':
             break
+        if event == 'Log out':
+            window.close()
+            show_login_page()
+            return
         if event == 'Profile':
             window.close()
             show_profile_page(username)
